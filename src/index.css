@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+html, body, #root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #020617; /* bg-slate-950 색상 강제 지정 */
+}

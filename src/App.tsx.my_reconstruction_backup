@@ -1,0 +1,895 @@
+import React, { useState, useRef, useEffect } from 'react';
+import './App.css';
+import { useAgents, AgentsProvider, type Agent } from './contexts/AgentsContext';
+import {
+    Terminal, Cpu, Play, RefreshCw, UserPlus, LogOut, PlusCircle,
+    Edit2, Trash2, X, Users, Crown, Bot, Zap, MessageSquare, Save, FileText, CheckCircle2, AlertCircle
+} from 'lucide-react';
+
+const getCharacterPreset = (agentId: string, index: number) => {
+    const presets = [
+        { name: '강철두', hairColor: '#22c55e', clothesColor: '#1e293b', isBald: false, mohawk: false },
+        { name: '김노을', hairColor: '#ef4444', clothesColor: '#0f172a', isBald: true, mohawk: true },
+        { name: '하니', hairColor: '#eab308', clothesColor: '#be123c', isBald: false, mohawk: false },
+        { name: '조이', hairColor: '#c084fc', clothesColor: '#701a75', isBald: false, mohawk: false },
+        { name: '레오', hairColor: '#3b82f6', clothesColor: '#1e40af', isBald: false, mohawk: false },
+    ];
+    if (agentId === 'agent_be1') return presets[0];
+    if (agentId === 'agent_be2') return presets[1];
+    if (agentId === 'agent_fe') return presets[2];
+    return presets[index % presets.length];
+};
+
+const getAgentDirection = (agent: any, index: number, isAutoMode: boolean, step?: string, presenterId?: string | null) => {
+    const isMeetingPhase = agent.status === 'debating' || (isAutoMode && step === 'reviewing');
+    if (isMeetingPhase && presenterId) {
+        if (agent.id === presenterId) return 'down'; // Presenter faces down from whiteboard
+        return 'up'; // Listeners face up to whiteboard
+    }
+    if (isAutoMode) {
+        const currentStep = step || 'idle';
+        if (currentStep === 'planning') return 'down';
+        if (currentStep === 'analyzing') return 'up';
+        if (currentStep === 'reviewing') return index % 2 === 0 ? 'left' : 'right';
+        return 'down';
+    }
+    if (!agent.isActive) return 'down';
+    if (agent.status === 'working' || agent.status === 'thinking') return 'up';
+    if (agent.role === 'leader') return 'down';
+    if (agent.assignedProjects.length === 0) return 'down';
+    return 'down';
+};
+
+const renderPixelSprite = (direction: 'up' | 'down' | 'left' | 'right', preset: any, isDebating?: boolean) => {
+    const { hairColor, clothesColor, isBald, mohawk } = preset;
+    const skin = isDebating ? '#f87171' : '#ffd3b6';
+    const pants = '#3b82f6';
+    const shoes = '#334155';
+    
+    const pixels: React.ReactNode[] = [];
+    const drawRect = (x: number, y: number, w: number, h: number, color: string) => {
+        pixels.push(<rect key={`${x}-${y}-${color}`} x={x} y={y} width={w} height={h} fill={color} />);
+    };
+    
+    if (direction === 'up') {
+        if (!isBald) {
+            drawRect(4, 2, 8, 6, hairColor);
+            drawRect(3, 3, 10, 5, hairColor);
+        } else {
+            drawRect(4, 3, 8, 5, skin);
+            if (mohawk) drawRect(7, 2, 2, 6, hairColor);
+        }
+        drawRect(4, 8, 8, 6, clothesColor);
+        drawRect(2, 8, 2, 4, clothesColor);
+        drawRect(12, 8, 2, 4, clothesColor);
+        drawRect(4, 14, 3, 2, pants);
+        drawRect(9, 14, 3, 2, pants);
+        drawRect(4, 16, 3, 1, shoes);
+        drawRect(9, 16, 3, 1, shoes);
+    } else if (direction === 'down') {
+        if (!isBald) {
+            drawRect(4, 2, 8, 6, hairColor);
+            drawRect(3, 3, 10, 5, hairColor);
+            drawRect(4, 4, 8, 4, skin);
+        } else {
+            drawRect(4, 3, 8, 5, skin);
+            drawRect(4, 4, 8, 4, skin);
+            if (mohawk) drawRect(7, 2, 2, 6, hairColor);
+        }
+        drawRect(5, 5, 2, 1, '#1e293b');
+        drawRect(9, 5, 2, 1, '#1e293b');
+        drawRect(4, 8, 8, 6, clothesColor);
+        drawRect(2, 8, 2, 4, clothesColor);
+        drawRect(12, 8, 2, 4, clothesColor);
+        drawRect(4, 14, 3, 2, pants);
+        drawRect(9, 14, 3, 2, pants);
+        drawRect(4, 16, 3, 1, shoes);
+        drawRect(9, 16, 3, 1, shoes);
+    } else if (direction === 'left') {
+        if (!isBald) {
+            drawRect(5, 2, 6, 6, hairColor);
+            drawRect(4, 3, 7, 4, hairColor);
+            drawRect(10, 4, 2, 4, skin);
+            drawRect(9, 5, 1, 1, '#1e293b');
+        } else {
+            drawRect(5, 3, 6, 5, skin);
+            drawRect(10, 4, 1, 4, skin);
+            drawRect(9, 5, 1, 1, '#1e293b');
+            if (mohawk) drawRect(7, 2, 2, 6, hairColor);
+        }
+        drawRect(6, 8, 6, 6, clothesColor);
+        drawRect(8, 8, 2, 4, clothesColor);
+        drawRect(6, 14, 3, 2, pants);
+        drawRect(6, 16, 3, 1, shoes);
+    } else if (direction === 'right') {
+        if (!isBald) {
+            drawRect(5, 2, 6, 6, hairColor);
+            drawRect(5, 3, 7, 4, hairColor);
+            drawRect(4, 4, 2, 4, skin);
+            drawRect(6, 5, 1, 1, '#1e293b');
+        } else {
+            drawRect(5, 3, 6, 5, skin);
+            drawRect(5, 4, 1, 4, skin);
+            drawRect(6, 5, 1, 1, '#1e293b');
+            if (mohawk) drawRect(7, 2, 2, 6, hairColor);
+        }
+        drawRect(4, 8, 6, 6, clothesColor);
+        drawRect(6, 8, 2, 4, clothesColor);
+        drawRect(7, 14, 3, 2, pants);
+        drawRect(7, 16, 3, 1, shoes);
+    }
+    
+    return (
+        <svg viewBox="0 0 16 18" className="w-12 h-14 drop-shadow-md" style={{ shapeRendering: 'crispEdges' }}>
+            {pixels}
+        </svg>
+    );
+};
+
+const renderLeaderSprite = (direction: 'up' | 'down' | 'left' | 'right') => {
+    const hairColor = '#8b5a2b';
+    const clothesColor = '#1e293b';
+    const skin = '#ffd3b6';
+    const pants = '#0f172a';
+    const shoes = '#334155';
+    
+    const pixels: React.ReactNode[] = [];
+    const drawRect = (x: number, y: number, w: number, h: number, color: string) => {
+        pixels.push(<rect key={`${x}-${y}-${color}`} x={x} y={y} width={w} height={h} fill={color} />);
+    };
+    
+    if (direction === 'up') {
+        drawRect(4, 2, 8, 6, hairColor);
+        drawRect(3, 3, 10, 5, hairColor);
+        drawRect(4, 8, 8, 6, clothesColor);
+        drawRect(2, 8, 2, 4, clothesColor);
+        drawRect(12, 8, 2, 4, clothesColor);
+        drawRect(4, 14, 3, 2, pants);
+        drawRect(9, 14, 3, 2, pants);
+        drawRect(4, 16, 3, 1, shoes);
+        drawRect(9, 16, 3, 1, shoes);
+    } else {
+        drawRect(4, 2, 8, 2, hairColor);
+        drawRect(3, 3, 10, 2, hairColor);
+        drawRect(3, 5, 2, 3, hairColor);
+        drawRect(11, 5, 2, 3, hairColor);
+        drawRect(5, 4, 6, 4, skin);
+        drawRect(4, 5, 8, 3, skin);
+        drawRect(5, 6, 2, 1, '#1e293b');
+        drawRect(9, 6, 2, 1, '#1e293b');
+        drawRect(4, 8, 8, 6, clothesColor);
+        drawRect(2, 8, 2, 4, clothesColor);
+        drawRect(12, 8, 2, 4, clothesColor);
+        drawRect(4, 14, 3, 2, pants);
+        drawRect(9, 14, 3, 2, pants);
+        drawRect(4, 16, 3, 1, shoes);
+        drawRect(9, 16, 3, 1, shoes);
+    }
+    
+    return (
+        <svg viewBox="0 0 16 18" className="w-12 h-14 drop-shadow-md" style={{ shapeRendering: 'crispEdges' }}>
+            {pixels}
+        </svg>
+    );
+};
+
+const renderPixelFace = (agentId: string, index: number, size: number = 32) => {
+    const preset = getCharacterPreset(agentId, index);
+    const { hairColor, isBald, mohawk } = preset;
+    const skin = '#ffd3b6';
+    
+    const pixels: React.ReactNode[] = [];
+    const drawRect = (x: number, y: number, w: number, h: number, color: string) => {
+        pixels.push(<rect key={`${x}-${y}-${color}`} x={x} y={y} width={w} height={h} fill={color} />);
+    };
+    
+    if (!isBald) {
+        drawRect(2, 2, 12, 4, hairColor);
+        drawRect(1, 3, 14, 4, hairColor);
+        drawRect(2, 6, 12, 8, skin);
+    } else {
+        drawRect(2, 3, 12, 11, skin);
+        if (mohawk) drawRect(6, 1, 4, 3, hairColor);
+    }
+    drawRect(4, 8, 2, 2, '#1e293b');
+    drawRect(10, 8, 2, 2, '#1e293b');
+    
+    return (
+        <svg viewBox="0 0 16 16" style={{ width: `${size}px`, height: `${size}px`, shapeRendering: 'crispEdges' }}>
+            <rect width="16" height="16" fill="#0f172a" rx="2" />
+            {pixels}
+        </svg>
+    );
+};
+
+const renderPottedTree = (x: number, y: number) => (
+    <div className="absolute select-none flex flex-col items-center z-10 drop-shadow-lg" style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}>
+        <div className="relative w-8 h-8 flex items-center justify-center">
+            <div className="absolute w-7 h-7 bg-[#4ade80] rounded-full opacity-90" />
+            <div className="absolute w-5 h-5 bg-[#22c55e] rounded-full bottom-0 left-0" />
+        </div>
+        <div className="w-1.5 h-2 bg-[#78350f]" />
+        <div className="w-4 h-3 bg-[#475569] border border-slate-500 rounded-sm" />
+    </div>
+);
+
+function Dashboard() {
+    const {
+        agents, projects, updateAgentStatus, assignProjectToAgent, toggleAgentActive, resetAllAgents,
+        addAgent, updateAgent, deleteAgent, addProject, deleteProject,
+        increaseAgentLoad, reduceAgentStress, updateAgentPosition
+    } = useAgents();
+
+    const [draggingAgentId, setDraggingAgentId] = useState<string | null>(null);
+    const officeRef = useRef<HTMLDivElement>(null);
+    const [localDirectories, setLocalDirectories] = useState<string[]>([]);
+
+    const [agentPanelTab, setAgentPanelTab] = useState<'manual' | 'auto' | 'teams'>('manual');
+    const [logInput, setLogInput] = useState('');
+    const [jiraKey, setJiraKey] = useState('');
+    const [runDevelopment, setRunDevelopment] = useState(false);
+    const [createBranch, setCreateBranch] = useState(false);
+    const [requestMode, setRequestMode] = useState<'unified' | 'individual'>('unified');
+    
+    const [isAddingProject, setIsAddingProject] = useState(false);
+    const [newProjectName, setNewProjectName] = useState('');
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    
+    const [leaderStatus, setLeaderStatus] = useState<any>(null);
+    const [autoPlan, setAutoPlan] = useState<any>(null);
+    const [meetingTick, setMeetingTick] = useState(0);
+
+    const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+
+    const [finalReport, setFinalReport] = useState('');
+    const [reportViewTab, setReportViewTab] = useState<'visual' | 'markdown'>('visual');
+    const [selectedReportAgentId, setSelectedReportAgentId] = useState<string>('merged');
+    const [lastTokenUsage, setLastTokenUsage] = useState<any>(null);
+
+    useEffect(() => {
+        const hasMeeting = agents.some(a => a.status === 'debating') || (agentPanelTab === 'auto' && leaderStatus?.step === 'reviewing');
+        if (!hasMeeting) return;
+        const interval = setInterval(() => setMeetingTick(t => t + 1), 3000);
+        return () => clearInterval(interval);
+    }, [agents, agentPanelTab, leaderStatus?.step]);
+
+    const activeDebaters = agents.filter(a => a.isActive && (a.status === 'debating' || (agentPanelTab === 'auto' && leaderStatus?.step === 'reviewing')));
+    const presenterId = activeDebaters.length > 0 ? activeDebaters[meetingTick % activeDebaters.length].id : null;
+
+    useEffect(() => {
+        if (isAddingProject && localDirectories.length === 0) {
+            fetch('http://localhost:8000/api/v1/projects/directories')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        setLocalDirectories(data.directories);
+                    }
+                })
+                .catch(err => console.error("디렉토리 목록 조회 실패", err));
+        }
+    }, [isAddingProject]);
+
+    const handleMouseMove = (e: MouseEvent) => {
+        if (!draggingAgentId || !officeRef.current) return;
+        const rect = officeRef.current.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        updateAgentPosition(draggingAgentId, { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+    };
+
+    const handleMouseUp = () => {
+        setDraggingAgentId(null);
+    };
+
+    useEffect(() => {
+        if (draggingAgentId) {
+            window.addEventListener('mouseup', handleMouseUp);
+            window.addEventListener('mousemove', handleMouseMove);
+        } else {
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('mousemove', handleMouseMove);
+        }
+        return () => {
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('mousemove', handleMouseMove);
+        };
+    }, [draggingAgentId]);
+
+    const handleMouseDown = (e: React.MouseEvent, agentId: string) => {
+        setDraggingAgentId(agentId);
+        e.preventDefault();
+    };
+
+    const handleAddProject = () => {
+        if (newProjectName.trim()) {
+            const trimmed = newProjectName.trim();
+            addProject({ id: trimmed, name: trimmed });
+            setNewProjectName('');
+            setIsAddingProject(false);
+        }
+    };
+    
+    const handleSaveAgent = () => {
+        if (!editingAgent) return;
+        if (agents.find(a => a.id === editingAgent.id)) {
+            updateAgent(editingAgent);
+        } else {
+            addAgent(editingAgent);
+        }
+        setEditingAgent(null);
+    };
+
+    const handleCreateNewAgent = () => {
+        const newId = `agent_${Date.now()}`;
+        setEditingAgent({
+            id: newId,
+            name: '신규 에이전트',
+            engine: 'Gemini-Flash',
+            role: 'backend',
+            status: 'idle',
+            spriteAsset: '👨‍💻',
+            assignedProjects: [],
+            isActive: false,
+            stress: 0,
+            totalTokens: 0
+        });
+    };
+    
+    // Coordinates mapping for 3-Room Layout
+    const getLoungePos = (idx: number) => {
+        const positions = [{ x: 80, y: 80 }, { x: 74, y: 74 }, { x: 88, y: 74 }, { x: 74, y: 86 }, { x: 88, y: 86 }];
+        return positions[idx % positions.length];
+    };
+    
+    const getMeetingPos = (idx: number) => {
+        const positions = [{ x: 78, y: 25 }, { x: 86, y: 25 }, { x: 73, y: 40 }, { x: 91, y: 40 }, { x: 78, y: 50 }, { x: 86, y: 50 }];
+        return positions[idx % positions.length];
+    };
+    
+    const getAgentOfficePosition = (agent: any, index: number, isAutoMode: boolean) => {
+        if (agent.customPosition) return agent.customPosition; // 💡 드래그된 수동 위치 최우선 적용
+        
+        const isPresenter = agent.id === presenterId;
+        const isMeetingPhase = agent.status === 'debating' || (isAutoMode && leaderStatus?.step === 'reviewing');
+        
+        // Presenter in meeting room (near whiteboard)
+        if (isPresenter && isMeetingPhase) return { x: 82, y: 15 };
+        
+        const workspacePositions = [
+            { x: 15, y: 15 }, { x: 33, y: 15 }, { x: 51, y: 15 }, // Row 1
+            { x: 15, y: 40 }, { x: 33, y: 40 }, { x: 51, y: 40 }, // Row 2
+            { x: 15, y: 65 }, { x: 51, y: 65 }                    // Row 3 (Edges)
+        ];
+        
+        if (agent.role === 'leader') {
+            if (isAutoMode) {
+                const step = leaderStatus?.step || 'idle';
+                if (step === 'reviewing') return getMeetingPos(index);
+                return { x: 33, y: 75 }; // Leader desk (pushed down)
+            }
+            if (!agent.isActive) return getLoungePos(index);
+            if (agent.status === 'debating') return getMeetingPos(index);
+            return { x: 33, y: 75 }; // Leader desk (pushed down)
+        }
+        
+        const deskPos = workspacePositions[index % workspacePositions.length];
+        
+        if (isAutoMode) {
+            const step = leaderStatus?.step || 'idle';
+            if (step === 'planning') return getLoungePos(index);
+            if (step === 'analyzing' || step === 'developing') return deskPos;
+            if (step === 'reviewing') return getMeetingPos(index);
+            if (step === 'completed') return index % 2 === 0 ? deskPos : getLoungePos(index);
+            return getLoungePos(index);
+        }
+        
+        if (!agent.isActive || agent.assignedProjects.length === 0) return getLoungePos(index);
+        if (agent.status === 'debating') return getMeetingPos(index);
+        return deskPos;
+    };
+
+    const getDeskAgent = (deskX: number, deskY: number) => {
+        const activeTeam = agents.filter(a => a.isActive && a.role !== 'leader');
+        return activeTeam.find((a, idx) => {
+            const pos = getAgentOfficePosition(a, idx, agentPanelTab === 'auto');
+            return Math.abs(pos.x - deskX) < 5 && Math.abs(pos.y - deskY) < 5;
+        });
+    };
+
+    const isDeskWorking = (deskAgent: any) => {
+        if (!deskAgent) return false;
+        return deskAgent.status === 'working' || deskAgent.status === 'thinking' || deskAgent.status === 'debating';
+    };
+
+    const handleStartOrchestration = async () => {
+        setIsAnalyzing(true);
+        setTimeout(() => setIsAnalyzing(false), 3000);
+    };
+
+    const renderDesk = (x: number, y: number, isLeaderDesk: boolean = false) => {
+        const deskAgent = getDeskAgent(x, y);
+        const isWorking = isDeskWorking(deskAgent);
+        
+        return (
+            <div className="absolute" style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)', zIndex: 10 }}>
+                {/* Desk shadow */}
+                <div className="absolute w-14 h-8 bg-black/10 rounded-full blur-[2px] bottom-[-5px]" />
+                <div className="w-14 h-10 flex flex-col items-center relative">
+                    {/* Desk top */}
+                    <div className={`w-14 h-7 ${isLeaderDesk ? 'bg-[#c39b6b] border-[#9b7348]' : 'bg-[#debf9f] border-[#c19b77]'} border-t-2 border-l-2 rounded-sm shadow-md flex justify-center items-end pb-1.5 relative z-10`}>
+                        {/* Laptop/Monitor */}
+                        <div className={`w-8 h-4.5 rounded-sm border-t border-l flex items-center justify-center relative ${isWorking ? 'bg-[#0f172a] border-[#020617] shadow-[0_-2px_10px_rgba(16,185,129,0.4)]' : 'bg-[#1e293b] border-[#0f172a]'}`}>
+                            {isWorking && <div className="absolute inset-0 bg-emerald-500/10 animate-pulse rounded-sm" />}
+                            {isWorking && <><div className="w-4 h-[1px] bg-emerald-400 opacity-90 rounded-full ml-0.5"/><div className="w-2 h-[1px] bg-cyan-400 opacity-90 rounded-full ml-0.5"/></>}
+                            {/* Monitor Stand */}
+                            <div className="absolute -bottom-1.5 w-2 h-1.5 bg-[#475569]" />
+                        </div>
+                    </div>
+                    {/* Chair */}
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex flex-col items-center z-0">
+                        <div className="w-5 h-5 bg-[#334155] rounded-full border-2 border-[#1e293b]" />
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex h-screen bg-[#060b13] text-slate-100 overflow-hidden font-sans">
+            <style>{`
+                .office-main-bg {
+                    background-color: #9ba8b8;
+                    background-image: 
+                        linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px);
+                    background-size: 30px 30px;
+                }
+                .office-meeting-bg {
+                    background-color: #f4f7fa;
+                    background-image: 
+                        linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+                        linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+                    background-size: 20px 20px;
+                }
+            `}</style>
+            
+            {/* 1. Left Column: Settings & Controls */}
+            <div className="w-[380px] border-r border-slate-800/60 bg-[#0c121d] p-5 flex flex-col h-full gap-5 overflow-y-auto custom-scrollbar flex-shrink-0">
+                
+                {/* Project List Rendering (Match Original Screenshot + Add/Delete Feature) */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3">
+                    <div className="flex justify-between items-center mb-1">
+                        <h2 className="text-[12px] font-extrabold text-slate-300">프로젝트 목록</h2>
+                        <button onClick={() => setIsAddingProject(!isAddingProject)} className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition-colors">
+                            {isAddingProject ? <X className="w-3 h-3" /> : <PlusCircle className="w-3 h-3" />} {isAddingProject ? '취소' : '추가'}
+                        </button>
+                    </div>
+
+                    {isAddingProject && (
+                        <div className="flex gap-2 bg-[#121926] p-2 rounded-lg border border-emerald-500/30 flex-col">
+                            <select 
+                                value={newProjectName} 
+                                onChange={(e) => setNewProjectName(e.target.value)} 
+                                className="w-full bg-[#090d16] text-xs px-2 py-1.5 rounded border border-slate-700 text-slate-100 outline-none focus:border-emerald-500/50"
+                            >
+                                <option value="">IdeaProjects 하위 폴더 선택...</option>
+                                {localDirectories.map(dir => (
+                                    <option key={dir} value={dir}>{dir}</option>
+                                ))}
+                            </select>
+                            <div className="flex gap-2 w-full">
+                                <input 
+                                    type="text" 
+                                    value={newProjectName} 
+                                    onChange={(e) => setNewProjectName(e.target.value)} 
+                                    placeholder="또는 수동 입력..." 
+                                    className="flex-1 bg-[#090d16] text-xs px-2 py-1.5 rounded border border-slate-700 text-slate-100 outline-none focus:border-emerald-500/50" 
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddProject()}
+                                />
+                                <button onClick={handleAddProject} className="bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded text-[10px] font-bold hover:bg-emerald-500/30 whitespace-nowrap">확인</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {projects.map(proj => (
+                        <div key={proj.id} className="bg-[#121926] border border-slate-800/80 rounded-xl p-3.5 shadow-sm group">
+                            <div className="flex justify-between items-start mb-2.5">
+                                <div className="text-[11px] font-extrabold text-slate-200">
+                                    {proj.name}
+                                </div>
+                                <button onClick={() => deleteProject(proj.id)} className="text-slate-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all">
+                                    <Trash2 className="w-3 h-3" />
+                                </button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {agents.filter(a => a.role !== 'leader').map((agent, idx) => {
+                                    const isAssigned = agent.assignedProjects.includes(proj.id);
+                                    const roleStr = agent.role === 'backend' ? 'BE' : 'FE';
+                                    const colorTheme = isAssigned ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-slate-900 border-slate-700 text-slate-500 hover:border-slate-600';
+                                    
+                                    return (
+                                        <button 
+                                            key={agent.id} 
+                                            onClick={() => assignProjectToAgent(agent.id, proj.id)}
+                                            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all border ${colorTheme}`}
+                                        >
+                                            {renderPixelFace(agent.id, agents.findIndex(a => a.id === agent.id), 12)}
+                                            {roleStr}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Request Form */}
+                <div className="flex flex-col gap-3 mt-4 border-t border-slate-800/60 pt-4">
+                    <div className="flex gap-2 border-b border-slate-800 pb-1">
+                        <button onClick={() => setRequestMode('unified')} className={`px-4 py-1.5 text-xs font-bold rounded-t-md transition-all ${requestMode === 'unified' ? 'bg-emerald-500/10 text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-500 hover:text-slate-400'}`}>통합 요청</button>
+                        <button onClick={() => setRequestMode('individual')} className={`px-4 py-1.5 text-xs font-bold rounded-t-md transition-all ${requestMode === 'individual' ? 'bg-emerald-500/10 text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-500 hover:text-slate-400'}`}>에이전트별 개별 요청</button>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="block text-slate-400 text-[10px] font-bold">Jira Issue Key (선택)</label>
+                        <input type="text" value={jiraKey} onChange={(e) => setJiraKey(e.target.value)} className="w-full bg-[#090d16] border border-slate-800/80 rounded px-3 py-2 text-xs text-slate-100 font-mono" />
+                    </div>
+
+                    <textarea 
+                        placeholder="분석할 로그 덤프 혹은 지시사항..." 
+                        value={logInput} 
+                        onChange={(e) => setLogInput(e.target.value)} 
+                        className="w-full h-28 bg-[#090d16] border border-slate-800/80 rounded px-3 py-2 text-xs text-slate-100 resize-none custom-scrollbar" 
+                    />
+
+                    {/* Options Box */}
+                    <div className="border border-slate-800/80 rounded-lg p-3 bg-[#121926] mt-1">
+                        <div className="text-[10px] font-extrabold text-slate-400 mb-2 flex items-center gap-1">
+                            <Edit2 className="w-3 h-3" /> 작업 옵션 설정
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <label className="flex items-center gap-2 cursor-pointer hover:text-slate-350 select-none">
+                                <input type="checkbox" checked={createBranch} onChange={(e) => setCreateBranch(e.target.checked)} className="accent-emerald-500 w-3.5 h-3.5" />
+                                <div>
+                                    <div className="text-[11px] font-bold text-slate-200">브랜치 생성</div>
+                                    <div className="text-[9px] text-slate-500">지라 연동하여 신규 브랜치 생성</div>
+                                </div>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer hover:text-slate-350 select-none">
+                                <input type="checkbox" checked={runDevelopment} onChange={(e) => setRunDevelopment(e.target.checked)} className="accent-emerald-500 w-3.5 h-3.5" />
+                                <div>
+                                    <div className="text-[11px] font-bold text-slate-200">개발 진행</div>
+                                    <div className="text-[9px] text-slate-500">분석 결과를 바탕으로 개발 수행</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-2">
+                        <button onClick={handleStartOrchestration} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-[#060b13] font-black py-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm shadow-lg">
+                            <Play className="w-4 h-4 fill-current" /> {isAnalyzing ? '기동 중...' : '▶ 에이전트 기동'}
+                        </button>
+                        <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg p-3 border border-slate-700 transition-colors shadow-lg">
+                            <RefreshCw className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* 2. Center Column: Office Grid & Report Viewer */}
+            <div className="flex-1 flex flex-col h-full overflow-hidden p-5 gap-5 select-none bg-[#090d16]">
+                
+                {/* 3-Room Layout Office Grid */}
+                <div ref={officeRef} className="flex-1 relative rounded-xl overflow-hidden border-4 border-[#5a6a7c] shadow-2xl flex">
+                    
+                    {/* Main Workspace (65%) */}
+                    <div className="w-[65%] h-full office-main-bg relative z-0 border-r-4 border-[#78889a]">
+                        {renderPottedTree(10, 10)}
+                        {renderPottedTree(55, 10)}
+                        {renderPottedTree(10, 60)}
+                        {renderPottedTree(55, 60)}
+
+                        {/* Row 1 */}
+                        {renderDesk(15, 15)} {renderDesk(33, 15)} {renderDesk(51, 15)}
+                        {/* Row 2 */}
+                        {renderDesk(15, 40)} {renderDesk(33, 40)} {renderDesk(51, 40)}
+                        {/* Row 3 */}
+                        {renderDesk(15, 65)} {renderDesk(51, 65)}
+                        
+                        {/* Leader Desk (Pushed down) */}
+                        {renderDesk(33, 75, true)}
+                    </div>
+                    
+                    {/* Right Area (35%) */}
+                    <div className="w-[35%] h-full flex flex-col z-0">
+                        {/* Meeting Room (65%) */}
+                        <div className="h-[65%] office-meeting-bg relative border-b-4 border-[#78889a] flex items-center justify-center">
+                            {/* Whiteboard */}
+                            <div className="absolute top-2 w-[70%] h-[12%] bg-white border-2 border-[#cbd5e1] rounded shadow-sm flex flex-col items-center justify-center">
+                                <div className="flex gap-1 mb-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                </div>
+                                <div className="w-[80%] h-1 bg-slate-200 rounded-full" />
+                                <div className="w-[50%] h-1 bg-slate-200 rounded-full mt-1" />
+                            </div>
+                            
+                            {/* Oval Table */}
+                            <div className="w-[75%] h-[30%] bg-white rounded-full border-2 border-[#cbd5e1] shadow-lg absolute bottom-[25%] z-10 flex items-center justify-center">
+                                <div className="w-[85%] h-[60%] border border-[#e2e8f0] rounded-full" />
+                            </div>
+                            
+                            {/* Chairs (dots) */}
+                            <div className="absolute w-[75%] h-[30%] bottom-[25%] flex flex-wrap justify-between items-center z-0 px-2 pointer-events-none">
+                                <div className="w-3 h-3 bg-slate-600 rounded-full absolute -top-1 left-[20%]" />
+                                <div className="w-3 h-3 bg-slate-600 rounded-full absolute -top-1 left-[50%] -translate-x-1/2" />
+                                <div className="w-3 h-3 bg-slate-600 rounded-full absolute -top-1 right-[20%]" />
+                                
+                                <div className="w-3 h-3 bg-slate-600 rounded-full absolute -bottom-1 left-[20%]" />
+                                <div className="w-3 h-3 bg-slate-600 rounded-full absolute -bottom-1 left-[50%] -translate-x-1/2" />
+                                <div className="w-3 h-3 bg-slate-600 rounded-full absolute -bottom-1 right-[20%]" />
+                            </div>
+                        </div>
+                        
+                        {/* Lounge (35%) */}
+                        <div className="h-[35%] bg-white relative">
+                            {/* LOUNGE badge */}
+                            <div className="absolute top-3 left-3 border-2 border-emerald-400 rounded-full px-2 py-0.5 text-[8px] font-bold text-emerald-500 bg-white shadow-sm flex items-center gap-1 z-10">
+                                ☕ LOUNGE
+                            </div>
+                            <div className="absolute top-3 right-3 border border-orange-300 rounded-full px-2 py-0.5 text-[8px] font-bold text-orange-500 bg-white shadow-sm flex items-center gap-1 z-10">
+                                COFFEE <div className="w-3 h-1 bg-orange-400 rounded-full ml-1" />
+                            </div>
+                            
+                            {/* Coffee machine */}
+                            <div className="absolute top-[35%] left-6 w-8 h-12 bg-slate-800 rounded flex flex-col items-center p-1 z-10 shadow-md border-b-4 border-[#78350f]">
+                                <div className="w-5 h-5 bg-slate-900 rounded-sm mb-1 flex items-center justify-center border border-slate-700">
+                                    <div className="w-2 h-2 bg-emerald-400 rounded-full" />
+                                </div>
+                                <div className="w-1.5 h-1.5 bg-slate-400 rounded-b-sm" />
+                                <div className="w-full flex-1 flex items-end justify-center pb-0.5">
+                                    <div className="text-[10px] leading-none mb-0.5">☕</div>
+                                </div>
+                            </div>
+                            
+                            {/* Small table */}
+                            <div className="absolute right-[30%] top-[40%] w-10 h-10 bg-white rounded-full shadow-lg border-2 border-[#e2e8f0] z-10" />
+                            <div className="absolute right-[30%] top-[30%] w-4 h-4 bg-slate-400 rounded-full z-0" />
+                            <div className="absolute right-[30%] top-[65%] w-4 h-4 bg-slate-400 rounded-full z-0" />
+                        </div>
+                    </div>
+
+                    {/* Render Agents over everything */}
+                    {agents.filter(a => a.isActive).map((agent, index) => {
+                        const pos = getAgentOfficePosition(agent, index, agentPanelTab === 'auto');
+                        const preset = getCharacterPreset(agent.id, index);
+                        const direction = getAgentDirection(agent, index, agentPanelTab === 'auto', leaderStatus?.step, presenterId);
+                        
+                        return (
+                            <div 
+                                key={`agent-${agent.id}`} 
+                                className={`absolute z-30 transition-all ${draggingAgentId === agent.id ? 'duration-0 scale-110 cursor-grabbing' : 'duration-1000 cursor-grab hover:scale-105'} ease-in-out flex flex-col items-center`} 
+                                style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
+                                onMouseDown={(e) => handleMouseDown(e, agent.id)}
+                                onDoubleClick={() => updateAgentPosition(agent.id, undefined)} // 더블클릭 시 수동 위치 해제
+                            >
+                                {/* Speech Bubble */}
+                                {agent.status === 'debating' && (
+                                    <div className="absolute -top-10 bg-[#1e293b] text-white text-[9px] font-extrabold px-3 py-1.5 rounded-full border-2 border-slate-700 shadow-lg whitespace-nowrap z-50">
+                                        {agent.id === presenterId ? "원인 분석 업무 접수" : "오, 동의합니다!"}
+                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1e293b] border-r-2 border-b-2 border-slate-700 transform rotate-45" />
+                                    </div>
+                                )}
+                                <div className="bg-[#18181b] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-slate-700 shadow-sm leading-none whitespace-nowrap mb-1">{agent.name}</div>
+                                {agent.role === 'leader' && (
+                                    <div className="bg-orange-500/20 text-orange-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-orange-500/30 mb-1 leading-none shadow-sm whitespace-nowrap">
+                                        [{agent.engine}]
+                                    </div>
+                                )}
+                                {agent.role === 'leader' ? renderLeaderSprite(direction) : renderPixelSprite(direction, preset, false)}
+                                <div className="w-8 h-1 bg-black/30 rounded-full filter blur-[1px] mt-0.5" />
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Report Viewer */}
+                <div className="h-[300px] flex flex-col bg-[#0c121d] border border-slate-800/80 rounded-xl p-5 shadow-xl overflow-hidden">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 mb-3">
+                        <h2 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-emerald-400" /> 📄 에이전트 오케스트레이션 보고서 뷰어
+                        </h2>
+                        {lastTokenUsage && (
+                            <span className="text-[9px] text-slate-500 font-mono">
+                                토큰 사용량: {lastTokenUsage.total_tokens.toLocaleString()} (P: {lastTokenUsage.prompt_tokens.toLocaleString()} / C: {lastTokenUsage.completion_tokens.toLocaleString()})
+                            </span>
+                        )}
+                    </div>
+                    
+                    <div className="flex gap-2 mb-3">
+                        <button onClick={() => setReportViewTab('visual')} className={`px-4 py-1.5 text-xs font-bold rounded border transition-all flex items-center gap-2 ${reportViewTab === 'visual' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
+                            <div className={`w-2 h-2 rounded-full ${reportViewTab === 'visual' ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                            비주얼 리포트 (Flowchart)
+                        </button>
+                        <button onClick={() => setReportViewTab('markdown')} className={`px-4 py-1.5 text-xs font-bold rounded border transition-all flex items-center gap-2 ${reportViewTab === 'markdown' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
+                            <div className={`w-2 h-2 rounded-full ${reportViewTab === 'markdown' ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                            마크다운 텍스트
+                        </button>
+                    </div>
+
+                    <div className="flex gap-4 mb-4 text-xs font-bold border-b border-slate-800 pb-2">
+                        <button onClick={() => setSelectedReportAgentId('merged')} className={`flex items-center gap-1.5 transition-colors ${selectedReportAgentId === 'merged' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${selectedReportAgentId === 'merged' ? 'bg-emerald-400' : 'bg-transparent'}`} /> 통합 리포트
+                        </button>
+                        <button onClick={() => setSelectedReportAgentId('agent_be1')} className={`flex items-center gap-1.5 transition-colors ${selectedReportAgentId === 'agent_be1' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${selectedReportAgentId === 'agent_be1' ? 'bg-emerald-400' : 'bg-slate-700'}`} /> 백엔드/DB1
+                        </button>
+                        <button onClick={() => setSelectedReportAgentId('agent_be2')} className={`flex items-center gap-1.5 transition-colors ${selectedReportAgentId === 'agent_be2' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${selectedReportAgentId === 'agent_be2' ? 'bg-emerald-400' : 'bg-slate-700'}`} /> 백엔드/DB2
+                        </button>
+                    </div>
+
+                    <div className="flex-1 bg-[#090d16] border border-slate-800/50 rounded-lg p-4 overflow-y-auto custom-scrollbar">
+                        {finalReport ? <div className="text-slate-300 whitespace-pre-wrap">{finalReport}</div> : <div className="text-slate-500 text-sm flex items-center justify-center h-full">보고서 대기 중...</div>}
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. Right Column: Rosters & Chat */}
+            <div className="w-[360px] border-l border-slate-800/60 bg-[#0c121d] p-5 flex flex-col h-full overflow-y-auto custom-scrollbar flex-shrink-0">
+                <div className="flex justify-between items-center mb-4 px-1">
+                    <div className="text-[10px] font-bold text-slate-400">
+                        카드를 클릭하면 에이전트가 오피스로 즉시 출근합니다.
+                    </div>
+                    <button onClick={handleCreateNewAgent} className="text-[10px] text-emerald-400 font-bold hover:text-emerald-300 flex items-center gap-1 transition-colors bg-emerald-500/10 px-2 py-1 rounded">
+                        <UserPlus className="w-3 h-3" /> 영입
+                    </button>
+                </div>
+                
+                <div className="space-y-4">
+                    {agents.map((agent, idx) => {
+                        const isLeader = agent.role === 'leader';
+                        const themeColor = isLeader ? 'yellow' : 'emerald';
+                        const cardBorder = agent.isActive ? `border-${themeColor}-500/50` : 'border-slate-800';
+                        const cardBg = agent.isActive ? 'bg-[#0f172a]/60' : 'bg-[#090d16]';
+                        
+                        return (
+                            <div key={agent.id} onClick={() => toggleAgentActive(agent.id)} className={`border ${cardBorder} rounded-xl p-4 ${cardBg} cursor-pointer transition-all hover:border-${themeColor}-500/30`}>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex gap-3">
+                                        <div className={`w-10 h-10 rounded-lg border flex items-center justify-center bg-slate-900 ${agent.isActive ? `border-${themeColor}-500/30` : 'border-slate-700'}`}>
+                                            {renderPixelFace(agent.id, idx, 32)}
+                                        </div>
+                                        <div>
+                                            <div className="font-extrabold text-sm text-slate-200">
+                                                {agent.name}
+                                            </div>
+                                            <div className="text-[9px] text-slate-500 mt-0.5">
+                                                엔진: {agent.role === 'leader' ? 'Claude CLI' : 'Gemini-Flash'} ({agent.role})
+                                            </div>
+                                            <div className={`mt-1.5 inline-flex text-[9px] px-1.5 py-0.5 rounded font-bold ${agent.isActive ? `bg-${themeColor}-500/10 text-${themeColor}-400 border border-${themeColor}-500/20` : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
+                                                상태: {agent.status === 'idle' ? '대기 중' : '작업 중'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-2">
+                                        <div className="flex gap-1.5">
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); setEditingAgent(agent); }} 
+                                                className="text-slate-500 hover:text-emerald-400 transition-colors p-1"
+                                                title="설정 편집"
+                                            >
+                                                <Edit2 className="w-3 h-3" />
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); deleteAgent(agent.id); }} 
+                                                className="text-slate-500 hover:text-rose-400 transition-colors p-1"
+                                                title="에이전트 삭제"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                        <button className={`border rounded px-3 py-1 text-xs font-bold transition-colors ${agent.isActive ? `border-${themeColor}-500 text-${themeColor}-400 bg-${themeColor}-500/10` : 'border-slate-700 text-slate-500'}`}>
+                                            {agent.isActive ? '출근 중' : '출근 전'}
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <div className="flex justify-between items-center text-[10px] mb-1.5">
+                                        <div className="flex items-center gap-1 font-bold text-slate-400">
+                                            <span className="text-[12px]">{isLeader ? '🔥' : '💧'}</span> 스트레스 지수:
+                                        </div>
+                                        <span className={`font-bold ${agent.stress > 50 ? 'text-rose-400' : 'text-slate-300'}`}>{agent.stress}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className={`h-full transition-all duration-1000 ${agent.stress > 50 ? 'bg-rose-500' : `bg-${themeColor}-500`}`} style={{ width: `${agent.stress}%` }} />
+                                    </div>
+                                    <div className="flex justify-between items-center text-[9px] text-slate-500 font-mono mt-2">
+                                        <div className="flex items-center gap-1">
+                                            <div className={`w-1.5 h-1.5 rounded-sm ${agent.isActive ? `bg-${themeColor}-400` : 'bg-slate-700'}`} />
+                                            당일 처리 토큰:
+                                        </div>
+                                        <span>{(agent.totalTokens || 0).toLocaleString()} 토큰</span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Agent Edit Modal */}
+            {editingAgent && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
+                    <div className="bg-[#0c121d] border border-slate-700 rounded-xl w-[320px] shadow-2xl p-5" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
+                            <h2 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
+                                <Users className="w-4 h-4 text-emerald-400" /> 에이전트 설정
+                            </h2>
+                            <button onClick={() => setEditingAgent(null)} className="text-slate-500 hover:text-slate-300">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">이름</label>
+                                <input 
+                                    type="text" 
+                                    value={editingAgent.name} 
+                                    onChange={(e) => setEditingAgent({...editingAgent, name: e.target.value})}
+                                    className="w-full bg-[#090d16] border border-slate-700 rounded px-3 py-2 text-xs text-slate-100 outline-none focus:border-emerald-500/50"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">역할 (Role)</label>
+                                <div className="flex gap-2">
+                                    {(['backend', 'frontend', 'leader'] as const).map(role => (
+                                        <button 
+                                            key={role}
+                                            onClick={() => setEditingAgent({...editingAgent, role})}
+                                            className={`flex-1 py-1.5 text-xs font-bold rounded border transition-colors ${editingAgent.role === role ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-slate-900 border-slate-700 text-slate-500'}`}
+                                        >
+                                            {role === 'backend' ? 'BE' : role === 'frontend' ? 'FE' : 'Leader'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">엔진 (Engine)</label>
+                                <select 
+                                    value={editingAgent.engine}
+                                    onChange={(e) => setEditingAgent({...editingAgent, engine: e.target.value as any})}
+                                    className="w-full bg-[#090d16] border border-slate-700 rounded px-3 py-2 text-xs text-slate-100 outline-none focus:border-emerald-500/50"
+                                >
+                                    <option value="Gemini-Flash">Gemini-Flash</option>
+                                    <option value="Gemini-Pro">Gemini-Pro</option>
+                                    <option value="Claude-CLI">Claude-CLI (로컬)</option>
+                                    <option value="Claude" disabled>Claude 3.5 Sonnet (API 키 필요)</option>
+                                    <option value="GPT-4" disabled>GPT-4o (API 키 필요)</option>
+                                </select>
+                            </div>
+                            
+                            <div className="pt-4 flex gap-2">
+                                <button onClick={() => setEditingAgent(null)} className="flex-1 py-2 text-xs font-bold text-slate-400 bg-slate-800 rounded hover:bg-slate-700 transition-colors">취소</button>
+                                <button onClick={handleSaveAgent} className="flex-1 py-2 text-xs font-bold text-[#060b13] bg-emerald-500 rounded hover:bg-emerald-400 flex items-center justify-center gap-1 transition-colors"><Save className="w-3 h-3"/> 저장</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+        </div>
+    );
+}
+
+export default function App() {
+    return (
+        <AgentsProvider>
+            <Dashboard />
+        </AgentsProvider>
+    );
+}

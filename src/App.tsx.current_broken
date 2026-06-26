@@ -1,0 +1,1885 @@
+import React, { useState, useRef, useEffect } from 'react';
+import './App.css';
+import { useAgents, AgentsProvider, type Agent } from './contexts/AgentsContext';
+import {
+    Terminal,
+    Cpu,
+    Play,
+    RefreshCw,
+    UserPlus,
+    LogOut,
+    PlusCircle,
+    Edit2,
+    Trash2,
+    X,
+    Users,
+    Crown,
+    Bot,
+    Zap
+} from 'lucide-react'; // 💡 아이콘 추가
+const getCharacterPreset = (agentId: string, index: number) => {
+    const presets = [
+        { name: '강철두', hairColor: '#22c55e', clothesColor: '#1e293b', isBald: false, mohawk: false }, // BE1 (Green)
+        { name: '김노을', hairColor: '#ef4444', clothesColor: '#0f172a', isBald: true, mohawk: true }, // BE2 (Mohawk)
+        { name: '하니', hairColor: '#eab308', clothesColor: '#be123c', isBald: false, mohawk: false }, // FE (Blond)
+        { name: '조이', hairColor: '#c084fc', clothesColor: '#701a75', isBald: false, mohawk: false }, // Extra 1 (Purple)
+        { name: '레오', hairColor: '#3b82f6', clothesColor: '#1e40af', isBald: false, mohawk: false }, // Extra 2 (Blue)
+    ];
+    
+    if (agentId === 'agent_be1') return presets[0];
+    if (agentId === 'agent_be2') return presets[1];
+    if (agentId === 'agent_fe') return presets[2];
+    
+    return presets[index % presets.length];
+};
+const getAgentDirection = (agent: any, index: number, isAutoMode: boolean, step?: string, presenterId?: string | null) => {
+    const isMeetingPhase = agent.status === 'debating' || (isAutoMode && step === 'reviewing');
+    if (isMeetingPhase && presenterId) {
+        if (agent.id === presenterId) {
+            return 'right'; // 발표자는 테이블 청중을 봄 (x: 72 -> x: 82 방향)
+        }
+        return 'left'; // 다른 에이전트들은 보드가 있는 왼쪽을 봄
+    }
+    if (isAutoMode) {
+        const currentStep = step || 'idle';
+        if (currentStep === 'planning') return 'down';
+        if (currentStep === 'analyzing') return 'up';
+        if (currentStep === 'reviewing') return index % 2 === 0 ? 'left' : 'right';
+        return 'down';
+    }
+    
+    if (!agent.isActive) return 'down';
+    if (agent.status === 'debating') return index % 2 === 0 ? 'left' : 'right';
+    if (agent.status === 'working' || agent.status === 'thinking') return 'up';
+    if (agent.role === 'leader') return 'down';
+    if (agent.assignedProjects.length === 0) return 'down';
+    
+    return 'down';
+};
+const renderPixelSprite = (direction: 'up' | 'down' | 'left' | 'right', preset: any, isDebating?: boolean) => {
+    const { hairColor, clothesColor, isBald, mohawk } = preset;
+    const skin = isDebating ? '#f87171' : '#ffd3b6';
+    const pants = '#3b82f6';
+    const shoes = '#334155';
+    
+    const pixels: React.ReactNode[] = [];
+    const drawRect = (x: number, y: number, w: number, h: number, color: string) => {
+        pixels.push(<rect key={`${x}-${y}-${color}`} x={x} y={y} width={w} height={h} fill={color} />);
+    };
+    
+    if (direction === 'up') {
+        if (!isBald) {
+            drawRect(4, 2, 8, 6, hairColor);
+            drawRect(3, 3, 10, 5, hairColor);
+        } else {
+            drawRect(4, 3, 8, 5, skin);
+            if (mohawk) {
+                drawRect(7, 2, 2, 6, hairColor);
+            }
+        }
+        drawRect(4, 8, 8, 6, clothesColor);
+        drawRect(2, 8, 2, 4, clothesColor);
+        drawRect(12, 8, 2, 4, clothesColor);
+        drawRect(4, 14, 3, 2, pants);
+        drawRect(9, 14, 3, 2, pants);
+        drawRect(4, 16, 3, 1, shoes);
+        drawRect(9, 16, 3, 1, shoes);
+    } else if (direction === 'left') {
+        if (!isBald) {
+            drawRect(5, 2, 6, 6, hairColor);
+            drawRect(4, 3, 7, 4, hairColor);
+            drawRect(10, 4, 2, 4, skin);
+            drawRect(9, 5, 1, 1, '#1e293b');
+        } else {
+            drawRect(5, 3, 6, 5, skin);
+            drawRect(10, 4, 1, 4, skin);
+            drawRect(9, 5, 1, 1, '#1e293b');
+            if (mohawk) {
+} else if (direction === 'right') {
+if (!isBald) {
+drawRect(5, 2, 6, 6, hairColor);
+drawRect(5, 3, 7, 4, hairColor);
+drawRect(4, 4, 2, 4, skin);
+drawRect(6, 5, 1, 1, '#1e293b');
+} else {
+drawRect(5, 3, 6, 5, skin);
+drawRect(5, 4, 1, 4, skin);
+drawRect(6, 5, 1, 1, '#1e293b');
+if (mohawk) {
+continue
+
+if stripped.startswith('#### '):
+if in_list:
+html_lines.append('</ul>')
+in_list = False
+title_text = replace_inline(stripped[5:])
+html_lines.append(f'<h4 class="text-sm font-bold text-slate-300 mt-4 mb-2">{title_text}</h4>')
+continue
+
+if stripped.startswith('- ') or stripped.startswith('* '):
+if not in_list:
+for proj in all_projects:
+if "db_meta" in proj:
+continue
+
+# 이 프로젝트를 담당한 에이전트 찾기
+assigned_agent_jira_key = None
+for agent_data in working_agents_raw:
+assigned_projects = agent_data.get("assignedProjects") or agent_data.get("projects") or []
+if proj in assigned_projects:
+assigned_agent_jira_key = agent_data.get("jira_key") or req_data.get("jira_key") or req_data.get("jiraKey")
+break
+
+# ② 지라 티켓 유무에 따른 파일명 동적 결정
+if assigned_agent_jira_key:
+file_name = f"{assigned_agent_jira_key}_리포트.md"
+elif jira_key:
+file_name = f"{jira_key}_리포트.md"
+else:
+file_name = f"일반리포트_{datetime.now().strftime('%H%M%S')}.md"
+
+# 생성할 폴더 경로 (예: ../chooyu/report/20260527)
+target_dir = f"../{proj}/report/{today_str}"
+os.makedirs(target_dir, exist_ok=True)
+
+# 최종 파일 경로
+target_file = f"{target_dir}/{file_name}"
+
+# 파일 저장
+with open(target_file, "w", encoding="utf-8") as f:
+f.write(response_text)
+
+print(f"💾 [{proj}] 부서 서류철에 리포트 꽂힘 -> {target_file}")"""
+
+new_content = content[:start_pos] + replacement + content[full_end_pos:]
+with open(file_path, "w", encoding="utf-8") as f:
+f.write(new_content)
+
+print("Updated server.py successfully!")
+
+1843: '                                                            handleGiveCoffee(leader.id);\n'
+stress: 0,
+totalTokens: 0
+})));
+};
+
+const addAgent = (newAgent: Agent) => {
+setAgents(prev => [...prev, newAgent]);
+};
+
+}
+✂️ 내비게이션 엑셀 7924자 → 5000자로 절삭
+📊 [토큰 예산 리포트] 마크다운: 8967자 | DB: 0자 | 내비: 5024자 | 총합: 13991자 (≈3497 토큰)
+📊 [Gemini Token Usage] gemini-2.5-flash -> Prompt: 6244 | Completion: 1447 | Total: 9358
+✅ [백엔드/DB 에이전트2] Gemini 분석 완료 (3133자)
+📊 [Gemini Token Usage] gemini-2.5-flash -> Prompt: 7064 | Completion: 888 | Total: 11035
+✅ [프론트엔드 에이전트] Gemini 분석 완료 (1825자)
+🟢 [Claude CLI] 프로세스 완료 (결과 2993자)
+📊 [Claude CLI Token Estimate] Prompt: 375 | Completion: 997 | Total: 1372
+✅ [백엔드/DB 에이전트1] Claude CLI 분석 완료 (2993자)
+✅ [2단계] 전체 3개 에이전트 분석 완료!
+👔 [팀장] 3/4단계: 팀원 결과 검토 및 최종 통합 리포트 작성 중...
+📋 [Claude CLI] MCP 설정: mcp_backend.json
+🔵 [Claude CLI] 프로세스 시작 (cwd: C:\Users\LEEJAEJUN\IdeaProjects\aiOrchestrator, role: backend)
+🟢 [Claude CLI] 프로세스 완료 (결과 4762자)
+📊 [Claude CLI Token Estimate] Prompt: 3248 | Completion: 1587 | Total: 4835
+✨ [팀장] 최종 통합 리포트 완성!
+💾 [chooyu] 자동 리포트 저장 → ../chooyu/report/20260616/GRIT-267200_AUTO리포트.md & ../chooyu/report/20260616/GRIT-267200_AUTO리포트.html
+💾 [annapurna] 자동 리포트 저장 → ../annapurna/report/20260616/GRIT-267200_AUTO리포트.md & ../annapurna/report/20260616/GRIT-267200_AUTO리포트.html
+💾 [echo-frontend] 자동 리포트 저장 → ../echo-frontend/report/20260616/GRIT-267200_AUTO리포트.md & ../echo-frontend/report/20260616/GRIT-267200_AUTO리포트.html
+INFO:     57.155.34.141:0 - "POST /api/v1/teams/webhook HTTP/1.1" 200 OK
+
+
+export default function App() {
+return (
+<AgentsProvider>
+<Dashboard />
+            style={{ width: `${size}px`, height: `${size}px`, shapeRendering: 'crispEdges' }}
+        >
+            <rect width="16" height="16" fill="#0f172a" rx="2" />
+            {pixels}
+        </svg>
+    );
+};
+const renderLeaderSprite = (direction: 'up' | 'down' | 'left' | 'right') => {
+    const hairColor = '#8b5a2b';
+    const clothesColor = '#1e293b';
+    const skin = '#ffd3b6';
+    const pants = '#0f172a';
+    const shoes = '#334155';
+    
+    const pixels: React.ReactNode[] = [];
+    const drawRect = (x: number, y: number, w: number, h: number, color: string) => {
+        pixels.push(<rect key={`${x}-${y}-${color}`} x={x} y={y} width={w} height={h} fill={color} />);
+    };
+    
+    if (direction === 'up') {
+        drawRect(4, 2, 8, 6, hairColor);
+        drawRect(3, 3, 10, 5, hairColor);
+        drawRect(4, 8, 8, 6, clothesColor);
+        drawRect(2, 8, 2, 4, clothesColor);
+        drawRect(12, 8, 2, 4, clothesColor);
+        drawRect(4, 14, 3, 2, pants);
+        drawRect(9, 14, 3, 2, pants);
+        drawRect(4, 16, 3, 1, shoes);
+        drawRect(9, 16, 3, 1, shoes);
+    } else {
+        drawRect(4, 2, 8, 2, hairColor);
+        drawRect(3, 3, 10, 2, hairColor);
+        drawRect(3, 5, 2, 3, hairColor);
+        drawRect(11, 5, 2, 3, hairColor);
+        drawRect(5, 4, 6, 4, skin);
+        drawRect(4, 5, 8, 3, skin);
+        drawRect(5, 
+"Error",
+f"Missing settings: {', '.join(missing)}.\nPlease configure via Settings menu.",
+)
+return
+
+try:
+issue = fetch_jira_issue(s["jira_url"], s["email"], s["pat_token"], issue_key)
+except requests.HTTPError as e:
+messagebox.showerror("Jira Error", f"Failed to fetch issue:\n{e}")
+return
+except Exception as e:
+messagebox.showerror("Jira Error", f"Unexpected error:\n{e}")
+    return (
+        <svg 
+            viewBox="0 0 16 18" 
+            className="w-12 h-14" 
+            style={{ shapeRendering: 'crispEdges' }}
+        >
+            {pixels}
+        </svg>
+    );
+};
+const renderPottedTree = (style: React.CSSProperties) => (
+    <div className="absolute select-none flex flex-col items-center z-20" style={style}>
+        {/* Tree Crown */}
+        <div className="relative w-8 h-8 flex items-center justify-center">
+            <div className="absolute w-7 h-7 bg-[#22c55e] border border-emerald-700 rounded-full shadow-md" />
+            <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-[#4ade80] rounded-full opacity-90" />
+            <div className="absolute w-4.5 h-4.5 bg-[#15803d] border border-emerald-800 rounded-full bottom-0.5 left-0.5 opacity-40" />
+        </div>
+        {/* Trunk */}
+        <div className="w-1.5 h-2 bg-[#78350f]" />
+        {/* Pot */}
+        <div className="w-4.5 h-3 bg-[#475569] border border-slate-500 rounded-b-sm shadow-sm" />
+    </div>
+);
+const DEBATE_TOPICS = [
+    "Controller에 JSP 인클루드는 절대 안 됩니다!",
+    "아닙니다, XML 대신 JSON이 표준이에요!",
+    "Gemini 1.5 Flash가 속도는 가장 빠릅니다!",
+    "그치만 코딩 퀄리티는 Claude 3.5 Sonnet이죠!",
+    "NoSQL이 확장성 최고입니다!",
+    "데이터의 신뢰성은 무조건 RDBMS(MySQL)입니다!",
+    "API 설계에는 REST가 가장 깔끔해요!",
+    "GraphQL이 쿼리 최적화에 유리합니다!",
+    "Java Spring Boot가 엔터프라이즈의 표준이죠!",
+    "Python FastAPI가 코딩 생산성은 압도적입니다!",
+    "코드 리뷰 때 탭 간격 2칸이 국룰입니다!",
+    "무슨 소리! 탭 간격은 4칸이 맞죠!",
+    "Git 커밋 메시지 규칙은 지켜야 합니다!",
+    "그냥 바쁠 땐 git commit -m 'fix' 하면 되죠!"
+];
+const PRESENTER_TOPICS = [
+    "자, 이 보드의 아키텍처 설계안을 보시죠!",
+    "Gemini와 Claude 로컬 MCP 연동 흐름은 이렇습니다.",
+    "여기 백엔드 스키마와 프론트엔드 연동 부하를 낮추는 방안입니다.",
+    "DB Assistant MCP를 통해 direct로 테이블 메타를 동기화했습니다.",
+    "이번 이슈 해결을 위해 이 로직 흐름으로 배포할 예정입니다."
+];
+const LISTENER_TOPICS = [
+    "오, 동의합니다! 그렇게 가죠.",
+    "그 부분은 리팩토링이 필요해 보이네요.",
+    "좋은 설계 방향이네요! 참고하겠습니다.",
+    "보드 설계안대로 작업하면 충돌이 없겠네요.",
+    "그럼 저는 프론트엔드 API 매핑을 시작하겠습니다!"
+];
+function Dashboard() {
+    // 💡 1. Context에서 새로 만든 추가/수정/삭제 함수까지 모두 꺼내옵니다.
+    const {
+        agents, projects, updateAgentStatus, assignProjectToAgent, toggleAgentActive, resetAllAgents,
+        addAgent, updateAgent, deleteAgent, addProject, deleteProject,
+        increaseAgentLoad, reduceAgentStress
+    } = useAgents();
+    const [logInput, setLogInput] = useState('');
+    const [jiraKey, setJiraKey] = useState('');
+    const [runDevelopment, setRunDevelopment] = useState(false);
+    const [createBranch, setCreateBranch] = useState(false);
+    const [useSelfReflection, setUseSelfReflection] = useState(false);
+    const [useVerifyLoop, setUseVerifyLoop] = useState(false);
+    const [requestMode, setRequestMode] = useState<'unified' | 'individual'>('unified');
+    const [individualInputs, setIndividualInputs] = useState<Record<string, { jiraKey: string; logInput: string }>>({});
+    const [finalReportHtml, setFinalReportHtml] = useState('');
+    const [reportViewTab, setReportViewTab] = useState<'markdown' | 'visual'>('
+    const [runningAgentIds, setRunningAgentIds] = useState<Record<string, boolean>>({});
+    const [attachedImages, setAttachedImages] = useState<string[]>([]);
+    const [finalReport, setFinalReport] = useState('');
+
+// 💡 매뉴얼/오토/팀즈 탭 상태
+const [agentPanelTab, setAgentPanelTab] = useState<'manual' | 'auto' | 'teams'>('manual');
+const [teamsInput, setTeamsInput] = useState('');
+const [teamsChatLog, setTeamsChatLog] = useState<{
+id: string;
+sender: 'user' | 'bot';
+text: string;
+images?: string[];
+timestamp: string;
+status?: 'planning' | 'analyzing' | 'reviewing' | 'completed' | 'error';
+resultData?: any;
+}[]>([
+{
+            role: string;
+            projects: string[];
+        }[];
+    } | null>(null);
+    const [autoPlan, setAutoPlan] = useState<any>(null);
+    // 💡 커피 인터랙션용 State 추가
+    const [coffeeAgentId, setCoffeeAgentId] = useState<string | null>(null);
+    const [meetingTick, setMeetingTick] = useState(0);
+    useEffect(() => {
+        const hasMeeting = agents.some(a => a.status === 'debating') || (agentPanelTab === 'auto' && leaderStatus?.step === 'reviewing');
+        if (!hasMeeting) {
+            return;
+        }
+        const interval = setInterval(() => {
+            setMeetingTick(t => t + 1);
+        }, 3000);
+        return () => clearInterval(interval);
+    }, [agents, agentPanelTab, leaderStatus?.step]);
+    const activeDebaters = agents.filter(a => a.isActive && (a.status === 'debating' || (agentPanelTab === 'auto' && leaderStatus?.step === 'reviewing')));
+    const presenterId = activeDebaters.length > 0
+        ? activeDebaters[meetingTick % activeDebaters.length].id
+        : null;
+    // 💡 캐릭터 드래그용 상태 및 참조 추가
+    const officeRef = useRef<HTMLDivElement>(null);
+    const isDraggingRef = useRef<boolean>(false);
+    const [customPositions, setCustomPositions] = useState<Record<string, { x: number, y: number }>>({});
+    const [dragInfo, setDragInfo] = useState<{
+        agentId: string;
+        startX: number;
+        startY: number;
+        startPos: { x: number, y: number };
+        hasMoved: boolean;
+    } | null>(null);
+    // 💡 2. 모달(팝업) 관리용 State 추가
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+    const [formData, setFormData] = useState<Partial<Agent>>({});
+    // 💡 프로젝트 모달(팝업) 관리용 State 추가
+    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+    const [projectFormData, setProjectFormData] = useState<Partial<{id: string, name: string}>>({});
+    const [projectDirectories, setProjectDirectories] = useState<string[]>([]);
+    // 💡 에이전트의 상태와 인덱스에 따라 2D 사무실 내 (x, y) 퍼센트 좌표를 반환하는 함수
+    const getLoungePos = (idx: number) => {
+        const positions = [
+            { x: 73, y: 65 }, // Table 1 Top Chair
+            { x: 91, y: 65 }, // Table 2 Top Chair
+            { x: 73, y: 85 }, // Table 1 Bottom Chair
+            { x: 91, y: 85 }, // Table 2 Bottom Chair
+            { x: 82, y: 75 }, // Center Lounge
+        ];
+        return positions[idx % positions.length];
+    };
+    const getMeetingPos = (idx: number) => {
+        const positions = [
+            { x: 74, y: 15 }, // Table Top Left
+            { x: 90, y: 15 }, // Table Top Right
+            { x: 74, y: 35 }, // Table Bottom Left
+            { x: 90, y: 35 }, // Table Bottom Right
+            { x: 82, y: 15 }, // Table Top Center
+        ];
+        return positions[idx % positions.length];
+    };
+    
+    const getAgentOfficePosition = (agent: any, index: number, isAutoMode: boolean) => {
+        if (customPositions[agent.id]) {
+            return customPositions[agent.id];
+        }
+        const isPresenter = agent.id === presenterId;
+        const isMeetingPhase = agent.status === 'debating' || (isAutoMode && leaderStatus?.step === 'reviewing');
+        if (isPresenter && isMeetingPhase) {
+            return { x: 72, y: 18 }; // 보드 바로 앞 위치
+        }
+        const workspaceX = (idx: number) => {
+            const col = idx % 4;
+            return 8 + col * 16;
+        };
+        const workspaceY = (idx: number) => {
+            const row = Math.floor(idx / 4) % 3;
+            return 23 + row * 28;
+        };
+        if (agent.role === 'leader') {
+            if (isAutoMode) {
+                const step = leaderStatus?.step || 'idle';
+                if (step === 'planning' || step === 'analyzing' || step === 'developing' || step === 'completed') {
+                    return { x: 35, y: 82 };
+                } else if (step === 'reviewing') {
+                    return getMeetingPos(index);
+                }
+                return { x: 35, y: 82 };
+            }
+            // 매뉴얼 모드
+            if (!agent.isActive) {
+                return getLoungePos(index);
+            }
+            if (agent.status === 'debating') {
+                return getMeetingPos(index);
+            }
+            if (agent.status === 'idle' && agent.message && agent.message.includes('라운지')) {
+                return getLoungePos(index);
+            }
+            return { x: 35, y: 82 };
+        }
+        if (isAutoMode) {
+            // 오토 모드: 팀장이 배정한 step과 assignments에 따라 에이전트 위치 동적 전이
+            const step = leaderStatus?.step || 'idle';
+            if (step === 'planning') {
+                // 배정 계획 수립 중 -> 휴게실 (Lounge) 대기
+                return getLoungePos(index);
+            } else if (step === 'analyzing' || step === 'developing') {
+                // 분석/개발 중 -> 개발/기획실 책상 (Work Space)
+                return { x: workspaceX(index), y: workspaceY(index) };
+            } else if (step === 'reviewing') {
+                // 검토/회의 중 -> 회의실 (Meeting Room)
+                return getMeetingPos(index);
+            } else if (step === 'completed') {
+                // 완료 후 -> 분산 배치 (일부는 퇴근 및 휴게)
+                if (index % 2 === 0) {
+                    return { x: workspaceX(index), y: workspaceY(ind
+            return getLoungePos(index);
+        }
+        // 매뉴얼 모드
+        if (!agent.isActive) {
+            return getLoungePos(index);
+        }
+        if (agent.assignedProjects.length === 0) {
+            // 미배정 대기중 -> 휴게실 (Lounge)
+            return getLoungePos(index);
+        }
+        if (agent.status === 'debating') {
+            // 토론/회의 중 -> 회의실 (Meeting Room)
+            return getMeetingPos(index);
+        }
+        // 분석/작업 중 -> 개발/기획실 책상 (Work Space)
+        return { x: workspaceX(index), y: workspaceY(index) };
+    };
+    const isDeskWorking = (deskIndex: number) => {
+        if (agentPanelTab === 'manual') {
+    };
+    const getDeskAgent = (deskIndex: number) => {
+        const activeTeam = agents.filter(a => a.isActive && a.role !== 'leader');
+        if (agentPanelTab === 'manual') {
+            const agent = activeTeam[deskIndex];
+            if (agent && agent.assignedProjects.length > 0) {
+                return agent;
+            }
+        } else {
+            const activeAssignments = leaderStatus?.assignments || autoPlan?.assignments || [];
+            const agent = activeTeam[deskIndex];
+            if (agent) {
+                const isAssigned = activeAssignments.some((a: any) => a.agent_name === agent.name);
+                if (isAssigned) {
+                    return agent;
+                }
+            }
+        }
+        return null;
+    };
+    const isDeskWorking = (deskIndex: number) => {
+        const agent = getDeskAgent(deskIndex);
+        if (!agent) return false;
+        return agent.status === 'working' || agent.status === 'thinking' || agent.status === 'debating';
+    };
+    return (
+        <div className="flex h-screen bg-[#090d16] text-slate-100 overflow-hidden font-sans">
+            {/* Left Column: Office Grid & Report */}
+                ];
+                return {
+                    ...meetingPos,
+                    message: messages[Math.floor(Math.random() * messages.length)]
+                };
+            } else {
+                const messages = [
+                    '💬 동료 자리 옆에서 이번 주 배포 일정 물어보는 중...',
+                    '💬 동료와 함께 신기술 트렌드에 대해 가벼운 스몰토크 중...',
+                    '💬 동료에게 최근 발견한 재밌는 버그 썰 푸는 중...'
+                ];
+                let tx, ty;
+                if (Math.random() > 0.5) {
+                    tx = 35 + (Math.random() > 0.5 ? 4 : -4);
+                    ty = 82 + (Math.random() > 0.5 ? 4 : -4);
+                    return {
+                        x: tx,
+                        y: ty,
+                        message: '💬 팀장님 자리 옆에서 피드백 수렴 및 기술 조언 받는 중...'
+                    };
+                } else {
+                    const targetIdx = activeAgentsCount > 1 ? (idx + 1) % activeAgentsCount : 0;
+                    tx = workspaceX(targetIdx) + (Math.random() > 0.5 ? 3.5 : -3.5);
+                    ty = workspaceY(targetIdx) + (Math.random() > 0.5 ? 3.5 : -3.5);
+                    return {
+                        x: tx,
+                        y: ty,
+                        message: messages[Math.floor(Math.random() * messages.length)]
+                    };
+                }
+            }
+        }
+    };
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const activeTeamCount = agents.filter(a => a.isActive && a.role !== 'leader').length;
+            
+            setSimulatedActivities(prev => {
+                const next = { ...prev };
+                agents.forEach((agent) => {
+                    const isIdle = isAgentSimulatingIdle(agent);
+                    if (!isIdle) {
+                        delete next[agent.id];
+                        return;
+                    }
+                                                     isWorking 
+                                                         ? 'bg-slate-900 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' 
+                                                         : deskAgent
+                                                             ? 'bg-cyan-950/40 border-cyan-800 shadow-[0_0_4px_rgba(6,182,212,0.15)]'
+                                                             : 'bg-[#0f172a] border-[#334155]'
+                                                 }`}>
+                                                     {isWorking ? (
+                                                         <>
+                                                             <div className="w-4 h-[1.5px] bg-emerald-400 opacity-90 rounded-2xs" />
+                                                             <div className="w-3 h-[1.5px] bg-cyan-400 opacity-90 rounded-2xs" />
+                                                             <div className="w-5 h-[1.5px] bg-emerald-400 opacity-90 rounded-2xs" />
+                                                         </>
+                                                     ) : deskAgent ? (
+                                                         /* 대기 모드: 켜진 화면 및 우하단 초록색 전원 LED */
+                                                         <div className="w-full h-full relative">
+                                                             <div className="w-1 h-1 bg-emerald-500 rounded-full absolute bottom-0.5 right-0.5 shadow-[0_0_2px_#10b981] opacity-70" />
+                                                         </div>
+                                                     ) : null}
+    const getAgentOfficePosition = (agent: any, index: number, isAutoMode: boolean) => {
+        if (customPositions[agent.id]) {
+            return customPositions[agent.id];
+        }
+        // 💡 캐릭터 자유 이동 (시뮬레이션) 시 해당 좌표 리턴
+        if (isAgentSimulatingIdle(agent) && simulatedActivities[agent.id]) {
+            return { x: simulatedActivities[agent.id].x, y: simulatedActivities[agent.id].y };
+        }
+        const isPresenter = agent.id === presenterId;
+        const isMeetingPhase = agent.status === 'debating' || (isAutoMode && leaderStatus?.step === 'reviewing');
+        if (isPresenter && isMeetingPhase) {
+            return { x: 72, y: 18 }; // 보드 바로 앞 위치
+        }
+        const workspaceX = (idx: number) => {
+            const col = idx % 4;
+            return 8 + col * 16;
+        };
+        const workspaceY = (idx: number) => {
+            const row = Math.floor(idx / 4) % 3;
+            return 23 + row * 28;
+        };
+        if (agent.role === 'leader') {
+            if (isAutoMode) {
+                const step = leaderStatus?.step || 'idle';
+                if (step === 'planning' || step === 'analyzing' || step === 'developing' || step === 'completed') {
+                    return { x: 35, y: 82 };
+                } e
+        const activeTeam = agents.filter(a => a.isActive && a.role !== 'leader');
+        if (agentPanelTab === 'manual') {
+            const agent = activeTeam[deskIndex];
+            if (agent && agent.assignedProjects.length > 0) {
+                return agent;
+            }
+        } else {
+            const activeAssignments = leaderStatus?.assignments || autoPlan?.assignments || [];
+            const agent = activeTeam[deskIndex];
+            if (agent) {
+                const isAssigned = activeAssignments.some((a: any) => a.agent_name === agent.name);
+                if (isAssigned) {
+                    return agent;
+                }
+            }
+        }
+        return null;
+    };
+    const isDeskWorking = (deskIndex: number) => {
+        const agent = getDeskAgent(deskIndex);
+        if (!agent) return false;
+                // 배정 계획 수립 중 -> 휴게실 (Lounge) 대기
+    };
+    return (
+        <div className="flex h-screen bg-[#090d16] text-slate-100 overflow-hidden font-sans">
+            {/* 1. Left Sidebar Column: Project Assignment & Settings */}
+            <div className="w-[380px] border-r border-slate-800/80 bg-slate-950/40 backdrop-blur-md p-6 flex flex-col h-full overflow-hidden select-none gap-6 flex-shrink-0">
+                <div className="flex-1 overflow-y-auto pr-1 space-y-6 custom-scrollbar">
+                    {/* 📁 프로젝트 배정 (매뉴얼) */}
+                    {agentPanelTab === 'manual' && (
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4">
+                            <h2 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
+                                <Zap className="w-4 h-4 text-emerald-400" /> 📁 프로젝트 배정 (매뉴얼)
+                            </h2>
+                            <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">
+                                각 에이전트가 담당하여 분석할 프로젝트 도메인을 선택해주세요.
+                            </p>
+                            <div className="bg-slate-950 border border-slate-850 rounded-lg p-3 overflow-y-auto h-48 space-y-3.5 custom-scrollbar">
+                                {agents.filter(a => a.role !== 'leader').map((agent) => (
+                                    <div key={agent.id} className="space-y-1.5 border-b border-slate-900 pb-2.5 last:border-0 last:pb-0">
+                                        <div className="flex items-center gap-1.5">
+                                            {renderPixelFace(agent.id, agents.findIndex(a => a.id === agent.id), 16)}
+                                            <span className="text-xs font-extrabold text-slate-200">{agent.name}</span>
+                                            <span className="text-[9px] px-1 py-0.2 bg-slate-900 border border-slate-855 rounded text-slate-400 font-bold">
+                                                {agent.role === 'backend' ? 'BE' : 'FE'}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {projects.map((proj) => {
+                                                const isAssigned = agent.assignedProjects.includes(proj.id);
+                                                return (
+                                                    <label 
+                                                        key={proj.id} 
+                                                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all border select-none ${
+                                                            isAssigned
+                                                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                                : 'bg-slate-950 border-slate-855 text-slate-400 hover:text-slate-350'
+                                                        }`}
+                                                    >
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={isAssigned}
+                                                            onChange={() => assignProjectToAgent(agent.id, proj.id)}
+                                                            className="hidden"
+                                                        />
+                                                        {proj.name.split(' ')[0]}
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 오케스트레이션 제어/입력 카드 */}
+                    {agentPanelTab !== 'teams' && (
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col gap-4">
+                            <h2 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
+                                <Terminal className="w-4 h-4 text-emerald-400" /> ⌨️ 이슈 분석 및 가동 요청
+                            </h2>
+                            
+                            <div className="grid grid-cols-2 gap-3.5">
+                                <div className="space-y-1">
+                                    <label className="block text-slate-400 text-[10px] font-extrabold">Jira Key (이슈 번호)</label>
+                                    <input 
+                                        type="text"
+                                        placeholder="예: GRIT-23095"
+                                        value={jiraKey}
+                                        onChange={(e) => setJiraKey(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-600 outline-none focus:border-emerald-500 transition-all font-mono"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-slate-400 text-[10px] font-extrabold">요청 모드</label>
+                                    <div className="flex bg-slate-950 p-0.5 rounded border border-slate-800 h-[29px]">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setRequestMode('unified')}
+                                            className={`flex-1 text-[9px] font-black rounded transition-all ${
+                                                requestMode === 'unified' ? 'bg-slate-800 text-emerald-400' : 'text-slate-500 hover:text-slate-400'
+                                            }`}
+                                        >
+                                            통합
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setRequestMode('individual')}
+                                            className={`flex-1 text-[9px] font-black rounded transition-all ${
+                                                requestMode === 'individual' ? 'bg-slate-800 text-emerald-400' : 'text-slate-500 hover:text-slate-400'
+                                            }`}
+                                        >
+                                            개별
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {requestMode === 'unified' ? (
+                                <div className="flex flex-col gap-2">
+                                    <label className="block text-slate-400 text-[10px] font-extrabold">통합 요청 사항</label>
+                                    <textarea 
+                                        placeholder="분석할 로그 덤프 혹은 에이전트에게 내릴 지시사항을 입력하세요..."
+                                        value={logInput}
+                                        onChange={(e) => setLogInput(e.target.value)}
+                                        className="w-full h-32 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-600 outline-none focus:border-emerald-500 transition-all font-medium resize-none custom-scrollbar"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="bg-slate-955 border border-slate-855 rounded-lg p-2.5 overflow-y-auto max-h-[160px] space-y-3.5 custom-scrollbar">
+                                    {agents.filter(a => a.isActive && a.role !== 'leader').map(agent => {
+                                        const inputs = individualInputs[agent.id] || { jiraKey: '', logInput: '' };
+                                        return (
+                                            <div key={agent.id} className="space-y-1.5 border-b border-slate-900 last:border-0 pb-2 last:pb-0">
+                                                <div className="flex items-center gap-1.5">
+                                                    {renderPixelFace(agent.id, agents.findIndex(a => a.id === agent.id), 12)}
+                                                    <span className="text-[10px] font-extrabold text-slate-300">{agent.name} 개별 요청</span>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <input 
+                                                        type="text"
+                                                        placeholder="Jira Key"
+                                                        value={inputs.jiraKey}
+                                                        onChange={(e) => {
+                                                            setIndividualInputs(prev => ({
+                                                                ...prev,
+                                                                [agent.id]: { ...inputs, jiraKey: e.target.value }
+                                                            }));
+                                                        }}
+                                                        className="bg-slate-955 border border-slate-855 rounded px-2 py-1 text-[10px] text-slate-200 placeholder-slate-600 outline-none focus:border-emerald-500 font-mono col-span-1"
+                                                    />
+                                                    <input 
+                                                        type="text"
+                                                        placeholder="지시사항"
+                                                        value={inputs.logInput}
+                                                        onChange={(e) => {
+                                                            setIndividualInputs(prev => ({
+                                                                ...prev,
+                                                                [agent.id]: { ...inputs, logInput: e.target.value }
+                                                            }));
+                                                        }}
+                                                        className="bg-slate-955 border border-slate-855 rounded px-2 py-1 text-[10px] text-slate-200 placeholder-slate-600 outline-none focus:border-emerald-500 font-medium col-span-2"
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* 이미지 첨부 및 추가 옵션 체크박스 */}
+                            <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 text-[9px] font-bold text-slate-400 border-t border-slate-850/60 pt-3">
+                                <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-350 select-none">
+                                    <input 
+                                        type="checkbox"
+                                        checked={runDevelopment}
+                                        onChange={(e) => setRunDevelopment(e.target.checked)}
+                                        className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500 w-3 h-3"
+                                    />
+                                    🌿 개발 수행
+                                </label>
+                                <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-350 select-none">
+                                    <input 
+                                        type="checkbox"
+                                        checked={createBranch}
+                                        onChange={(e) => setCreateBranch(e.target.checked)}
+                                        className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500 w-3 h-3"
+                                    />
+                                    🌿 브랜치 생성
+                                </label>
+                                <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-350 select-none">
+                                    <input 
+                                        type="checkbox"
+                                        checked={useSelfReflection}
+                                        onChange={(e) => setUseSelfReflection(e.target.checked)}
+                                        className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500 w-3 h-3"
+                                    />
+                                    🧠 자기 성찰
+                                </label>
+                                <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-350 select-none">
+                                    <input 
+                                        type="checkbox"
+                                        checked={useVerifyLoop}
+                                        onChange={(e) => setUseVerifyLoop(e.target.checked)}
+                                        className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500 w-3 h-3"
+                                    />
+                                    🔍 검증 루프
+                                </label>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 border-t border-slate-850/60 pt-3">
+                                {attachedImages.length > 0 && (
+                                    <div className="flex -space-x-1.5 overflow-hidden">
+                                        {attachedImages.map((img, idx) => (
+                                            <div key={idx} className="relative w-6 h-6 border border-slate-800 rounded bg-slate-950 flex-shrink-0 flex items-center justify-center shadow-md">
+                                                <img src={img} alt="preview" className="w-full h-full object-cover" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[10px] px-2.5 py-1.5 rounded font-black cursor-pointer shadow-sm transition-colors select-none">
+                                    📸 캡처 첨부
+                                    <input 
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={(e) => {
+                                            if (e.target.files) {
+                                                Array.from(e.target.files).forEach(file => {
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        if (typeof reader.result === 'string') {
+                                                            setAttachedImages(prev => [...prev, reader.result as string]);
+                                                        }
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                });
+                                            }
+                                        }}
+                                        className="hidden"
+                                    />
+                                </label>
+                                {attachedImages.length > 0 && (
+                                    <button 
+                                        type="button"
+                                        onClick={() => setAttachedImages([])}
+                                        className="text-rose-400 hover:text-rose-300 text-[10px] font-black underline cursor-pointer"
+                                    >
+                                        전체 삭제
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Bottom Action Button Area in Left Column */}
+                {agentPanelTab === 'manual' && (
+                    <div className="pt-2 border-t border-slate-800/80">
+                        <button
+                            type="button"
+                            onClick={handleStartOrchestration}
+                            disabled={isAnalyzing || Object.values(runningAgentIds).some(Boolean)}
+                            className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-30 text-base shadow-md cursor-pointer active:scale-95"
+                        >
+                            <Play className="w-4 h-4 fill-current" /> {isAnalyzing ? '조율 중...' : '🚀 에이전트 가동'}
+                        </button>
+                    </div>
+                )}
+                {agentPanelTab === 'auto' && (
+                    <div className="pt-2 border-t border-slate-800/80">
+                        <button
+                            type="button"
+                            onClick={handleStartAutoOrchestration}
+                            disabled={isAnalyzing || Object.values(runningAgentIds).some(Boolean)}
+                            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-30 text-base shadow-md cursor-pointer active:scale-95"
+                        >
+                            <Crown className="w-4 h-4" /> {isAnalyzing ? '팀장 지휘 중...' : '👔 팀장에게 맡기기'}
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* 2. Center Column: Office Grid & Report */}
+            <div className="flex-1 flex flex-col h-full overflow-hidden p-6 gap-6 select-none">
+                {/* 2D 오피스 가상 공간 */}
+                <div 
+                    ref={officeRef}
+                    className="h-[380px] min-h-[350px] relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl office-grid-bg"
+                >
+                    {/* Coffee Machine (Kitchen/Lounge Area) */}
+                    <div className="absolute right-[10%] top-[10%] w-10 h-16 bg-slate-800 border border-slate-700 rounded shadow-md z-10 flex flex-col items-center p-1.5" title="Coffee Machine">
+                        <div className="w-6 h-6 bg-slate-900 border border-slate-700 rounded flex items-center justify-center mb-1">
+                            <span className="text-[10px] scale-90 font-mono text-emerald-400 font-bold">CAFE</span>
+                        </div>
+                        {/* Coffee dispenser spout */}
+                        <div className="w-2 h-1.5 bg-slate-600 rounded-b-sm" />
+                        {/* Drip tray and cup */}
+                        <div className="w-full h-4 bg-slate-900 border border-slate-700 rounded-xs flex items-center justify-center relative">
+                            <span className="text-[10px] scale-90 origin-center animate-bounce">☕</span>
+                        </div>
+                    </div>
+                    {/* Room division walls/doors */}
+            return getLoungePos(index);
+        }
+        if (agent.status === 'debating') {
+            // 토론/회의 중 -> 회의실 (Meeting Room)
+            return getMeetingPos(index);
+        }
+        // 분석/작업 중 -> 개발/기획실 책상 (Work Space)
+        return { x: workspaceX(index), y: workspaceY(index) };
+    };
+    const isDeskWorking = (deskIndex: number) => {
+                                {/* [2. 캐릭터 렌더링 레이어] */}
+                                {/* 매뉴얼 모드: 수동 출근 에이전트 표시 */}
+                                {agentPanelTab === 'manual' && (
+                                    agents.filter(a => a.isActive && a.role !== 'leader').length === 0 ? (
+                                        <div className="absolute inset-0 flex justify-center items-center text-slate-500 text-sm italic z-10 font-medium">
+                                            🏢 오피스에 출근한 인력이 없습니다. 우측 인력 대기열에서 에이전트를 출근시켜주세요!
+                                        {/* ☕ 라운지 커피 둥둥 애니메이션 */}
+                                        {isResting && !isCoffeeActive && (
+                                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 text-sm animate-float select-none z-20" title="커피 한잔의 여유">
+                                                ☕
+                                            </span>
+                                        )}
+                                        {/* 👥 회의실 붉으락푸르락 대화창 애니메이션 */}
+                                        {isDebating && (
+                                            <div 
+                                                className="pixel-bubble"
+                                                style={pos.x < 80 ? { left: '44px', bottom: '16px' } : { right: '44px', bottom: '16px' }}
+                                            >
+                                                {agent.id === presenterId 
+                                                    ? PRESENTER_TOPICS[(index + meetingTick) % PRESENTER_TOPICS.length]
+                                                    : LISTENER_TOPICS[(index + meetingTick) % LISTENER_TOPICS.length]}
+                                            </div>
+                                        )}
+                                        {/* 💡 2D 게임 감성의 호버 툴팁 (
+    };
+    // 💡 3. 모달 제어 및 CRUD 처리 함수
+    // 💡 모달 열기 시 기본값을 Gemini-Flash로 셋팅
+    const openModal = (agent?: Agent, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        if (agent) {
+                    {/* Coffee Machine (Kitchen/Lounge Area) */}
+                    <div className="absolute right-[10%] top-[10%] w-10 h-16 bg-slate-800 border border-slate-700 rounded shadow-md z-10 flex flex-col items-center p-1.5" title="Coffee Machine">
+                        <div className="w-6 h-6 bg-slate-900 border border-slate-700 rounded flex items-center justify-center mb-1">
+                            <span className="text-[10px] scale-90 font-mono text-emerald-400 font-bold">CAFE</span>
+                        </div>
+                        {/* Coffee dispenser spout */}
+                        <div className="w-2 h-1.5 bg-slate-600 rounded-b-sm" />
+                        {/* Drip tray and cup */}
+                        <div className="w-full h-4 bg-slate-900 border border-slate-700 rounded-xs flex items-center justify-center relative">
+                            <span className="text-[10px] scale-90 origin-center animate-bounce">☕</span>
+                        </div>
+                    </div>
+                    {/* Room division walls/doors */}
+                    <div className="absolute left-[65%] top-[20%] w-1.5 h-6 bg-[#966b46] border border-[#785230] rounded shadow-sm z-20" title="Meeting Room Door" />
+                    <div className="absolute left-[78%] bottom-[50%] w-6 h-1.5 bg-[#966b46] border border-[#785230] rounded shadow-sm z-20" title="Lounge Door" />
+                    {/* Render 12 Desks */}
+                    {Array.from({ length: 12 }).map((_, i) => {
+                        const col = i % 4;
+                        const row = Math.floor(i / 4);
+                        const dx = 8 + col * 16;
+                        const dy = 14 + row * 28;
+                                                 {/* 👥 회의실 붉으락푸르락 대화창 애니메이션 */}
+                                                 {isDebating && (
+                                                     <div 
+                                                         className="pixel-bubble"
+                                                         style={pos.x < 80 ? { left: '44px', bottom: '16px' } : { right: '44px', bottom: '16px' }}
+                                                     >
+                                                         {agent.id === presenterId 
+                                                             ? PRESENTER_TOPICS[(index + meetingTick) % PRESENTER_TOPICS.length]
+                                                             : LISTENER_TOPICS[(index + meetingTick) % LISTENER_TOPICS.length]}
+                                                     </div>
+                                                 )}
+                                                 {/* 💡 2D 게임 감성의 호버 툴팁 (당일 처리량) */}
+                                                 <div className="absolute bottom-18 scale-0 group-hover:scale-100 transition-all origin-bottom bg-slate-900/95 border border-slate-700 p-2 rounded-xl shadow-2xl z-30 flex flex-col gap-1 w-28 text-[8px] font-bold leading-normal select-none">
+                                                     <div className="text-[7px] text-slate-500 font-mono truncate">
+                                                         토큰: {(agent.totalTokens ?? 0).toLocaleString()} 토큰
+                                                     </div>
+                                                 </div>
+                                                 {/* 이름표 (캐릭터 머리 위로 배치 이동!) */}
+                                                 <div className="mb-1 select-none flex flex-col items-center">
+                                                     <div className="bg-[#18181b] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-slate-700 shadow-sm leading-none whitespace-nowrap">
+                                                         {charPreset.name}
+    
+        if (errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+            friendlyMessage = '⚠️ Gemini API 호출 한도(Rate Limit) 또는 무료 할당량(Quota)이 초과되었습니다. 잠시 후(약 10초~1분) 다시 시도해주세요.';
+        } else if (errMsg.includes('503') || errMsg.includes('UNAVAILABLE')) {
+            friendlyMessage = '⚠️ Gemini 모델 서비스가 현재 일시적인 트래픽 폭주로 혼잡합니다. 잠시 후 다시 시도해주세요.';
+        }
+        
+        return {
+                                                    isCoffeeActive
+                                                        ? 'bg-slate-900/95 text-slate-100 border border-slate-700 animate-bounce'
+                                                        : leaderStatus?.message
+                                                            ? 'bg-amber-900/90 text-amber-100 border border-amber-500/50 animate-pulse'
+                                                            : 'bg-slate-900/95 text-slate-100 border border-slate-700'
+                                                }`}>
+                                                    {isCoffeeActive
+                                                        ? "☕ 고마워요! 팀장 버프로 조율 능력이 향상됩니다! 💖"
+                                                        : leaderDisplayMessage}
+                                                    <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 ${
+                                                        isCoffeeActive
+                                                            ? 'bg-slate-900 border-r border-b border-slate-700'
+                                                            : leaderStatus?.message
+                                                                ? 'bg-amber-900/90 border-r border-b border-amber-500/50'
+                                                                : 'bg-slate-900 border-r border-b border-slate-700'
+                                                    }`} />
+                                                </div>
+                                            )}
+                                            {isMeetingPhase && (
+                                                <div 
+                                                    className="pixel-bubble"
+                                                    style={leaderPos.x < 80 ? { left: '44px', bottom: '16px' } : { right: '44px', bottom: '16px' }}
+                                                >
+                                                    {leaderAgent.id === presenterId 
+                                                        ? PRESENTER_TOPICS[(leaderIndex + meetingTick) % PRESENTER_TOPICS.length]
+                                                        : LISTENER_TOPICS[(leaderIndex + meetingTick) % LISTENER_TOPICS.length]}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                                {/* ☕ 라운지 커피 둥둥 애니메이션 */}
+                                {isResting && !isCoffeeActive && (
+                                    <span className="absolute -top-7 left-1/2 -translate-x-1/2 text-sm animate-float select-none z-20" title="커피 한잔의 여유">
+                                        ☕
+                                    </span>
+                                )}
+                                {/* 이름표 및 두뇌 
+                                        {(() => {
+                                            const isMeetingPhase = leaderAgent.status === 'debating' || (agentPanelTab === 'auto' && leaderStatus?.step === 'reviewing');
+                                            return (
+                                                <>
+                                                    {(leaderDisplayMessage || isCoffeeActive) && !isMeetingPhase && (
+                                                        <div className={`absolute bottom-22 text-[9px] px-2 py-1.5 rounded-xl shadow-2xl w-[170px] text-center font-medium z-30 leading-normal ${
+                                                            isCoffeeActive
+                                                                ? 'bg-slate-900/95 text-slate-100 border border-slate-700 animate-bounce'
+                } catch (err) {
+                    console.error('Failed to poll status:', err);
+                }
+            };
+            // 즉시 한 번 호출한 뒤 2초 간격으로 폴링 수행
+            pollStatus();
+            const pollTimer = setInterval(pollStatus, 2000);
+            let response: Response;
+            try {
+                response = await fetch('http://127.0.0.1:8000/api/v1/orchestrate/auto', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+{"step_index":849,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-06-24T07:03:15Z","tool_calls":[{"name":"view_file","args":{"AbsolutePath":"\"c:\\\\Users\\\\LEEJAEJUN\\\\IdeaProjects\\\\aiOrchestrator\\\\src\\\\App.tsx\"","EndLine":"2380","StartLine":"2200","toolAction":"\"Viewing broken section of App.tsx\"","toolSummary":"\"Read App.tsx line 2200-2380\""}}]}
+{"step_index":850,"source":"MODEL","type":"VIEW_FILE","status":"DONE","created_at":"2026-06-24T07:03:18Z","content":"Created At: 2026-06-24T07:03:18Z\nCompleted At: 2026-06-24T07:03:18Z\nFile Path: `file:///c:/Users/LEEJAEJUN/IdeaProjects/aiOrchestrator/src/App.tsx`\nTotal Lines: 3026\nTotal Bytes: 198587\nShowing lines 2200 to 2380\nThe following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.\n2200:                                                                  : isSimulatingIdle\r\n2201:                                                                      ? 'opacity-100'\r\n2202:                                                                      : 'opacity-0 group-hover:opacity-100'\r\n2203:                                                          }`}\r\n2204:                                                      >\r\n2205:                                                         {isCoffeeActive ? \"☕ 캬! 커피 버프 돌
+                        jira_key: jiraKey.trim(),
+                        log_text: logInput,
+                        log_images: attachedImages,
+                            const activeAssignments = leaderStatus?.assignments || autoPlan?.assignments || [];
+                            return activeAgents.map((agent, index) => {
+                                const assignmentIndex = activeAssignments.findIndex((a: any) => a.agent_name === agent.name);
+                                const isAssigned = assignmentIndex !== -1;
+                                const useIndex = isAssigned ? assignmentIndex : index;
+                                const pos = getAgentOfficePosition(agent, useIndex, true);
+                                const isCoffeeActive = coffeeAgentId === agent.id;
+                                const isAnalyzingStep = leaderStatus?.step === 'analyzing';
+                                const isReviewingStep = leaderStatus?.step === 'reviewing';
+                                const isRestingStep = leaderStatus?.step === 'planning';
+                                
+                                const isResting = (isRestingStep && isAssigned) || (!isAssigned && agent.assignedProjects?.length === 0);
+                                const displayMessage = isAssigned ? agent.message : null;
+                                 
+                                const charPreset = getCharacterPreset(agent.id, agents.findIndex(ag => ag.id === agent.id));
+                                const direction = getAgentDirection(agent, useIndex, true, leaderStatus?.step, presenterId);
+                
+                clearInterval(pollTimer);
+            }
+            const data = await response.json();
+            if (response.ok && data.status === 'success') {
+                const finalAssignments = data.plan?.assignments || [];
+                setLeaderStatus({
+                    step: 'completed',
+                    message: '✨ 최종 통합 리포트 작성이 완료되었습니다!',
+                                            {isAnalyzing && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[10px] animate-bounce z-20">💡</span>}
+                                                className={`absolute bottom-22 bg-slate-900/95 text-slate-100 border border-slate-700 text-[9px] px-2 py-1.5 rounded-xl shadow-2xl w-[150px] text-center font-medium z-30 leading-normal pointer-events-none transition-all duration-300 ${
+                                                    isCoffeeActive 
+                                                        ? 'opacity-100 animate-bounce' 
+                                                        : isSimulatingIdle
+                                                            ? 'opacity-100'
+                                                            : 'opacity-0 group-hover:opacity-100'
+                                                }`}
+                                            >
+                                                {isCoffeeActive ? "☕ 캬! 커피 버프 돌입! 코딩 에너지가 솟구칩니다! 💖" : displayMessage}
+                                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 border-r border-b border-slate-700 rotate-45" />
+                                            </div>
+                                        )}
+                                        {/* ☕ 라운지 커피 둥둥 애니메이션 */}
+                                        {isResting && !isCoffeeActive && (
+                                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 text-sm a
+                                    const activeAssignments = leaderStatus?.assignments || autoPlan?.assignments || [];
+                                    return activeAgents.map((agent, index) => {
+                                        // 해당 에이전트가 이번 오케스트레이션 단계에 배정되었는지 확인
+                                        const assignmentIndex = activeAssignments.findIndex((a: any) => a.agent_name === agent.name);
+                        const matchedAgent = agents.find(ag => ag.name === assignment.agent_name);
+                        if (matchedAgent) {
+                            increaseAgentLoad(matchedAgent.id, shareLoad);
+                        }
+                    });
+                    increaseAgentLoad('agent_leader', totalTokensUsed);
+                }
+            } else {
+                const errDetail = data.detail || '백엔드 처리 중 에러 발생';
+                const { friendly, markdown } = parseOrchestrateError(errDetail);
+                setLeaderStatus({
+                    step: 'error',
+                    message: friendly
+                });
+                setFinalReport(markdown);
+            }
+        } catch (error: any) {
+            console.error(error);
+            const { friendly, markdown } = parseOrchestrateError(error.message);
+                                        <div className="mb-1 select-none flex flex-col items-center">
+                                            <div className="bg-[#18181b] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-slate-700 shadow-sm leading-none whitespace-nowrap">
+                                                {charPreset.name}
+                                            </div>
+                                        </div>
+                                        {/* 캐릭터 본체와 바닥 그림자 */}
+                                        <div className="relative flex flex-col items-center">
+                                            <div className="relative">
+                                            <div className="relative">
+                                                {isAnalyzingStep && isAssigned && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[10px] animate-bounce z-20">⌨️</span>}
+                                                <div className={`transition-all ${(isReviewingStep && isAssigned) ? 'animate-shake' : ''}`}>
+                                                    {renderPixelSprite(direction, charPreset, isReviewingStep && isAssigned)}
+                                                </div>
+                                            </div>
+                                            {/* 바닥 그림자 */}
+                                            <div className="w-8 h-1 bg-black/40 rounded-full filter blur-[1px] mt-0.5" />
+                                        </div>
+                                    </div>
+                                );
+                            });
+                        })()
+                    )}
+                </div>
+{/* 대형 리포트 패널 */}
+                <div className="flex-1 flex flex-col bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4 overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-slate-855 pb-3">
+                            <h2 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
+                                <Cpu className="w-4 h-4 text-emerald-400" /> 📋 에이전트 오케스트레이션 보고서 뷰어
+                            </h2>
+                            {lastTokenUsage && (
+                                <span className="text-[10px] text-slate-500 font-mono bg-slate-950 border border-slate-800 px-2 py-0.5 rounded">
+                                    토큰 사용량: {lastTokenUsage.total_tokens.toLocaleString()} (P: {lastTokenUsage.prompt_tokens.toLocaleString()} / C: {lastTokenUsage.completion_tokens.toLocaleString()})
+                                </span>
+                            )}
+                        </div>
+                        {/* 리포트 탭 헤더 */}
+                        {finalReport && (
+                            <div className="flex flex-col gap-2 mb-3">
+                                <div className="flex justify-between items-center w-full flex-wrap gap-2">
+                                    <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 w-fit">
+                                        <button
+                                            type="button"
+                                            onClick={() => setReportViewTab('visual')}
+                                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+                                                reportViewTab === 'visual'
+                                                    ? 'bg-slate-800 text-emerald-400 shadow-md'
+                                                    : 'text-slate-400 hover:text-slate-300'
+      
+
+
+if __name__ == "__main__":
+import uvicorn
+# 💡 파일 이름 문자열 대신 app 인스턴스 객체를 직접 넘기고, 메인 스레드 락을 막기 위해 reload는 끕니다.
+if "db_meta" in proj:
+continue
+target_dir = f"../{proj}/report/{today_str}"
+os.makedirs(target_dir, exist_ok=True)
+target_file = f"{target_dir}/{file_name}"
+if (!leader || !leader.isActive) {
+alert('팀장이 출근하지 않았습니다! 팀장을 출근시킨 후 다시 시도해주세요.');
+return;
+}
+
+                                                 <div className="relative flex flex-col items-center">
+                                                     <div className="relative">
+                                                         {isAnalyzingStep && isAssigned && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[10px] animate-bounce z-20">⌨️</span>}
+                                                         <div className={`transition-all ${(isReviewingStep && isAssigned) ? 'animate-shake' : ''}`}>
+                                                             {renderPixelSprite(direction, charPreset, isReviewingStep && isAssigned)}
+                                                         </div>
+                                                     </div>
+                                                     {/* 바닥 그림자 */}
+                                                     <div className="w-8 h-1 bg-black/40 rounded-full filter blur-[1px] mt-0.5" />
+                                                 </div>
+                                             </div>
+                                         );
+                                     });
+                                 })()
+                            )}
+<div className="w-8 h-1 bg-black/40 rounded-full filter blur-[1px] mt-0.5" />
+                                                 </div>
+                                             </div>
+                                         );
+                                     });
+                                 })()
+                             )}
+                        </div>
+                    </div>
+                    {/* 대형 리포트 패널 */}
+                <div className="flex-1 flex flex-col bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4 overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-slate-855 pb-3">
+                            <h2 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
+                                <Cpu className="w-4 h-4 text-emerald-400" /> 📋 에이전트 오케스트레이션 보고서 뷰어
+                            </h2>
+if (res.ok) {
+const statusData = await res.json();
+setLeaderStatus(statusData);
+}
+} catch (err) {
+console.error('Failed to poll status:', err);
+}
+};
+
+                                    </div>
+                                </div>
+                                <div className="relative flex flex-col items-center">
+                                    {isAnalyzing && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[10px] animate-bounce z-20">💡</span>}
+                                    <div className={`transition-all ${isAnalyzing ? 'animate-pulse' : ''}`}>
+                                        {renderLeaderSprite(direction)}
+                                    </div>
+                                    {/* 바닥 그림자 */}
+                                    <div className="w-8 h-1 bg-black/40 rounded-full filter blur-[1px] mt-0.5" />
+                                </div>
+                            </div>
+                        );
+                    })()}
+                    {/* 오토 모드: 배정된 에이전트 실시간 시각화 및 비배정 대기 에이전트 시뮬레이션 */}
+                    {agentPanelTab === 'auto' && (
+                        (() => {
+                            const activeAgents = agents.filter(a => a.isActive && a.role !== 'leader');
+                            if (activeAgents.length === 0) return null;
+                            const activeAssignments = leaderStatus?.assignments || autoPlan?.assignments || [];
+                            return activeAgents.map((agent, index) => {
+                                const assignmentIndex = activeAssignments.findIndex((a: any) => a.agent_name === agent.name);
+                                const isAssigned = assignmentIndex !== -1;
+                                const useIndex = isAssigned ? assignmentIndex : index;
+                                const pos = getAgentOfficePosition(agent, useIndex, true);
+                                const isCoffeeActive = coffeeAgentId === agent.id;
+                                const isAnalyzingStep = leaderStatus?.step === 'analyzing';
+                                const isReviewingStep = leaderStatus?.step === 'reviewing';
+                                const isRestingStep = leaderStatus?.step === 'planning';
+                                
+                                const isSimulatingIdle = isAgentSimulatingIdle(agent);
+                                const simActivity = isSimulatingIdle ? simulatedActivities[agent.id] : null;
+                                const isResting = (isRestingStep && isAssigned) || (simActivity && simActivity.message.includes('라운지')) || (!isAssigned && !isSimulatingIdle && agent.assignedProjects?.length === 0);
+                                const displayMessage = simActivity ? simActivity.message : (isAssigned ? agent.message : null);
+                                 
+                                const charPreset = getCharacterPreset(agent.id, agents.findIndex(ag => ag.id === agent.id));
+                                const direction = getAgentDirection(agent, useIndex, true, leaderStatus?.step, presenterId);
+   
+                                        {/* 👥 회의실 붉으락푸르락 대화창 애
+"result": response_text,
+"result_html": response_html,
+"agent_reports": agent_reports,
+"token_usage": usage
+}
+
+except Exception as e:
+print(f"🔴 서버 내부 에러 발생: {e}")
+raise HTTPException(status_code=500, detail=str(e))
+
+# --- [🤖 AUTO 오케스트레이션 글로벌 상태] ---
+                                <Crown className="w-3.5 h-3.5" /> 오토
+                            </button>
+                        </div>
+                        {/* ── 매뉴얼 탭 콘텐츠 ── */}
+                        {agentPanelTab === 'manual' && (
+                            <div className="flex-1 flex flex-col overflow-hidden">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h2 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
+                                        <UserPlus className="w-4 h-4 text-emerald-400" /> 인력 대기열
+                                    </h2>
+                                    <button onClick={(e) => openModal(undefined, e)} className="bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400 text-xs px-2 py-1 rounded font-bold transition-colors flex items-center gap-1 border border-emerald-500/30">
+                                        <PlusCircle className="w-3 h-3" /> 신규
+                                    </button>
+                                </div>
+                                <p className="text-[11px] text-slate-400 mb-4 font-semibold leading-relaxed">카드를 클릭하면 에이전트가 오피스로 즉시 출근합니다.</p>
+                                <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar">
+                                    {(() => {
+                                         const leader = agents.find(a => a.role === 'leader');
+                                         if (!leader) return null;
+                                         const leaderIndex = agents.findIndex(a => a.id === leader.id);
+                                         return (
+                                             <div 
+                                                 onClick={() => toggleAgentActive(leader.id)}
+                                                 className={`border p-4 rounded-xl cursor-pointer transition-all flex flex-col gap-3 group relative overflow-hidden ${
+                                                     leader.isActive
+                                                         ? 'bg-amber-500/10 border-amber-500/40 shadow-lg'
+                                                         : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                                                 }`}
+                                             >
+                                                 <div className="flex items-center justify-between">
+                                                     <div className="flex items-center gap-3">
+                                                         <div className={`w-12 h-12 text-2xl rounded-lg flex items-center justify-center border transition-all overflow-hidden ${
+                                                             leader.isActive ? 'bg-slate-900 border-amber-500/30' : 'bg-slate-900/40 border-slate-800 opacity-40'
+                                                         }`}>
+                                                             {renderPixelFace(leader.id, leaderIndex, 48)}
+                         
+                                                 {/* 이름표 (캐릭터 머리 위로 배치 이동!) */}
+                                                 <div className="mb-1 select-none flex flex-col items-center">
+                                                     <div className="bg-[#18181b] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-slate-700 shadow-sm leading-none whitespace-nowrap">
+                                                         {charPreset.name}
+                                                     </div>
+                                                 </div>
+                                                 <div className="relative flex flex-col items-center">
+                                                     <div className="relative">
+                                                         {isAnalyzingStep && isAssigned && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[10px] animate-bounce z-20">⌨️</span>}
+                                                         <div className={`transition-all ${(isReviewingStep && isAssigned) ? 'animate-shake' : ''}`}>
+                                                             {renderPixelSprite(direction, charPreset, isReviewingStep && isAssigned)}
+                                                         </div>
+                                                {isAnalyzingStep && isAssigned && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[10px] animate-bounce z-20">⌨️</span>}
+                                                <div className={`transition-all ${(isReviewingStep && isAssigned) ? 'animate-shake' : ''}`}>
+                                                    {renderPixelSprite(direction, charPreset, isReviewingStep && isAssigned)}
+                                                </div>
+                                            </div>
+                                            {/* 바닥 그림자 */}
+                                            <div className="w-8 h-1 bg-black/40 rounded-full filter blur-[1px] mt-0.5" />
+                                        </div>
+                                    </div>
+                                );
+                            });
+                        })()
+                    )}
+                </div>
+{/* 대형 리포트 패널 */}
+                <div className="flex-1 flex flex-col bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4 overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-slate-855 pb-3">
+                            <h2 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
+                                <Cpu className="w-4 h-4 text-emerald-400" /> 📋 에이전트 오케스트레이션 보고서 뷰어
+                            </h2>
+                            {lastTokenUsage && (
+                                <span className="text-[10px] text-slate-500 font-mono bg-slate-950 border border-slate-800 px-2 py-0.5 rounded">
+                                    토큰 사용량: {lastTokenUsage.total_tokens.toLocaleString()} (P: {lastTokenUsage.prompt_tokens.toLocaleString()} / C: {lastTokenUsage.completion_tokens.toLocaleString()})
+                                </span>
+                            )}
+                        </div>
+                        </div>
+                        {/* 리포트 탭 헤더 */}
+                        {finalReport && (
+                            <div className="flex flex-col gap-2 mb-3">
+                        {/* 리포트 탭 헤더 */}
+                        {finalReport && (
+                            <div className="flex flex-col gap-2 mb-3">
+                                <div className="flex justify-between items-center w-full flex-wrap gap-2">
+                                    <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 w-fit">
+                                        <button
+                                            type="button"
+                                            onClick={() => setReportViewTab('visual')}
+                                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+                                                reportViewTab === 'visual'
+                                                    ? 'bg-slate-800 text-emerald-400 shadow-md'
+                                                    : 'text-slate-400 hover:text-slate-300'
+                                            }`}
+                                        >
+                                            📊 비주얼 리포트 (Flowchart)
+                                        </button>
+                                                reportViewTab === 'markdown'
+                                                    ? 'bg-slate-800 text-emerald-400 shadow-md'
+                                                    : 'text-slate-400 hover:text-slate-300'
+                                            }`}
+                                        >
+                                            📝 마크다운 텍스트
+                                        </button>
+                                    </div>
+                                </div>
+                                {/* 에이전트별 리포트 셀렉터 */}
+                                {Object.keys(agentReports).length > 0 && (
+                                    <div className="flex flex-wrap gap-2 bg-slate-950/40 p-1.5 rounded-lg border border-slate-800/80 w-full overflow-x-auto">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedReportAgentId('merged')}
+                                            className={`px-3 py-1 rounded text-xs font-extrabold transition-all border ${
+                                                selectedReportAgentId === 'merged'
+                                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                    : 'bg-transparent border-transparent text-slate-500 hover:text-slate-400'
+                                            }`}
+                                        >
+                                            🌐 통합 리포트
+                                        </button>
+                                        {Object.keys(agentReports).map((agentId) => {
+                                            const agent = agents.find(a => a.id === agentId);
+                                            const agentName = agent ? agent.name : agentId;
+                                            return (
+                                                <button
+                                                    key={agentId}
+                                                    type="button"
+                                                    onClick={() => setSelectedReportAgentId(agentId)}
+                                                    className={`px-3 py-1 rounded text-xs font-extrabold transition-all border flex items-center gap-1.5 ${
+                                                        selectedReportAgentId === agentId
+                                                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                            : 'bg-transparent border-transparent text-slate-500 hover:text-slate-400'
+                                                    }`}
+                                                >
+                                                    {renderPixelFace(agentId, agents.findIndex(a => a.id === agentId), 12)}
+      
+        // 해당 에이전트 가동 상태 등록 (병렬 실행 지원)
+        setRunningAgentIds(prev => ({ ...prev, [agentId]: true }));
+        
+        // 에이전트 상태를 분석중으로 갱신 (팀원이나 팀장 다른 상태는 유지)
+        updateAgentStatus(agent.id, 'thinking', `${agent.assignedProjects.join(', ')} 구조 분석 중...`);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        updateAgentStatus(agent.id, 'working', '지정된 전담 도메인 분석 중 ⌨️');
+        let simulationTimeoutId: any = null;
+        const apiCallPromise = (async () => {
+            let url = 'http://127.0.0.1:8000/api/v1/orchestrate';
+            const fetchRes = await fetch(url, {
+                method: 'POST',
+                                    return reportViewTab === 'visual' && currentReportHtml ? (
+                                        <iframe
+                                            srcDoc={currentReportHtml}
+                                            title="Visual Report"
+                                            className="w-full h-full border-none bg-transparent"
+                                            sandbox="allow-scripts"
+                                        />
+                                    ) : (
+                                        <div className="p-5 font-mono text-sm leading-relaxed overflow-y-auto h-full text-slate-100 whitespace-pre-wrap custom-scrollbar">
+                                            {currentReportText}
+                                        </div>
+                                    );
+                                })()
+                            ) : (
+                                            <div className="flex items-center justify-end gap-2 border-t border-slate-800/50 pt-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {agent.isActive && (
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleGiveCoffee(agent.id);
+                                                        }}
+                                                        className="text-[10px] flex items-center gap-1 px-2 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded"
+                                                    >
+                                                        ☕ 커피 주기
+                                                    </button>
+                                                )}
+                                                <button onClick={(e) => openModal(agent, e)} className="text-[10px] flex items-center gap-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded">
+                                                    <Edit2 className="w-3 h-3" /> 수정
+                                                </button>
+                                                <button onClick={(e) => handleDeleteAg
+                                        : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-300'
+                                }`}
+                            >
+                                <Bot className="w-3.5 h-3.5" /> 매뉴얼
+                            </button>
+                            </button>
+                            <button
+                                onClick={() => setAgentPanelTab('auto')}
+                                className={`flex-1 py-2 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 transition-all border ${
+                                    agentPanelTab === 'auto'
+const timerId = setTimeout(() => {
+finishedAgents.add(agent.id);
+finishedCount++;
+
+                                    <h3 className="text-sm font-black text-amber-300 flex items-center gap-2 mb-3">
+                                        <Crown className="w-4 h-4" /> 팀장 설정
+                                    </h3>
+                                    <label className="block text-slate-400 mb-1.5 text-xs font-bold">팀장 두뇌 엔진</label>
+                                    <select
+                                        value={leaderEngine}
+                                        onChange={(e) => {
+                                            if (leaderAgent) {
+                                                updateAgent({
+                                                    ...leaderAgent,
+                                                    engine: e.target.value as any
+                                                });
+                                            }
+                                        }}
+                                        className="w-full bg-slate-950 border border-amber-500/30 rounded p-2 text-amber-100 text-sm outline-none focus:border-amber-400"
+                                    >
+                                        <option value="Claude-CLI">🔵 Claude-CLI (MCP 하네스/로컬)</option>
+                                        <option value="Gemini-Flash">⚡ Gemini-Flash (고속)</option>
+                                        <option value="Gemini-Pro">🌟 Gemini-Pro (고성능)</option>
+                                    </select>
+                                    <p className="text-[10px] text-amber-400/70 mt-2 leading-relaxed">
+                                        팀장이 팀원 배정 → 병렬 분석 → 교차 검토 → 최종 리포트를 자동으로 수행합니다.
+                                    </p>
+                                </div>
+                                {/* 팀장 진행 상태 */}
+                                {leaderStatus && (
+                                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-300 font-semibold flex items-center gap-2 animate-pulse">
+                                        <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+                                        {leaderStatus.message}
+                                    </div>
+                                )}
+                                {/* 팀원 로스터 (읽기 전용) */}
+                                <div>
+                                    <h3 className="text-xs font-black text-slate-300 flex items-center gap-1.5 mb-2">
+                                        <Users className="w-3.5 h-3.5 text-slate-400" /> 팀원 로스터 (읽기 전용)
+                                    </h3>
+                                    <div className="space-y-1.5">
+                                        {(() => {
+                                            const leader = agents.find(a 
+1273:         "role": "backend",
+1274:         "status": "idle",
+1275:         "spriteAsset": "🧙‍♂️",
+1276:         "assignedProjects": ["annapurna", "member-batch", "db_meta"],
+1277:         "isActive": True,
+1278:         "stress": 0,
+1279:         "totalTokens": 0
+1280:     },
+1281:     {
+1282:         "id": "agent_fe",
+1283:         "name": "프론트엔드 에이전트",
+1284:         "engine": "Gemini-Flash",
+1285:         "role": "frontend",
+                                                                 출근 <UserPlus className="w-3 h-3" />
+                                                             </span>
+                                                         ) : (
+                                                             <span className="text-[10px] bg-slate-900 text-slate-500 font-semibold px-2 py-1 rounded border border-slate-800 flex items-center gap-1 group-hover:text-slate-400 transition-colors">
+                                                                 퇴근 <LogOut className="w-3 h-3" />
+                                                             </span>
+                                                                👑 {leader.name}
+                                                             </div>
+                                                             <div className="text-[9px] text-slate-500 font-mono">{leader.engine} · 팀장/총괄</div>
+                                                         </div>
+                                                         <div>
+                                                             {leader.isActive ? (
+                                                                 <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 font-black flex items-center gap-1">
+                                                                     출근 <UserPlus className="w-2.5 h-2.5" />
+                                                                 </span>
+                                                             ) : (
+                                                                 <span className="text-[9px] bg-slate-900 text-slate-500 px-1.5 py-0.5 rounded border border-slate-800 font-semibold flex items-center gap-1">
+                                                                     퇴근 <LogOut className="w-2.5 h-2.5" />
+                                                                 </span>
+                                                             )}
+                                                         </div>
+                                                     </div>
+                                                     <di
+                                                });
+                                            }
+                                        }}
+                                        className="w-full bg-slate-950 border border-amber-500/30 rounded p-2 text-amber-100 text-sm outline-none focus:border-amber-400"
+                                    >
+                                        <option value="Claude-CLI">🔵 Claude-CLI (MCP 하네스/로컬)</option>
+                                        <option value="Gemini-Flash">⚡ Gemini-Flash (고속)</option>
+                                        <option value="Gemini-Pro">🌟 Gemini-Pro (고성능)</option>
+                                    </select>
+                                    <p className="text-[10px] text-amber-400/70 mt-2 leading-relaxed">
+                                        팀장이 팀원 배정 → 병렬 분석 → 교차 검토 → 최종 리포트를 자동으로 수행합니다.
+                                    </p>
+result_data = await run_auto_orchestration_core(
+jira_key=jira_key,
+log_text=log_text,
+log_images=log_images,
+available_agents=available_agents,
+available_projects=available_projects,
+leader_engine=leader_engine
+)
+return result_data
+
+except Exception as e:
+print(f"🔴 [Auto 오케스트레이터] 에러 발생: {e}")
+global auto_status
+leader_engine=leader_engine
+)
+return result_data
+
+except Exception as e:
+print(f"🔴 [Auto 오케스트레이터] 에러 발생: {e}")
+global auto_status
+auto_status["step"] = "error"
+auto_status["message"] = f"❌ 오류 발생: {str(e)}"
+            {isProjectModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+                            <h3 className="text-lg font-black text-slate-100 flex items-center gap-2">
+                                <PlusCircle className="w-5 h-5 text-emerald-400" />
+                                새 프로젝트 추가
+                            </h3>
+                            <button onClick={() => setIsProjectModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleProjectSubmit} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-slate-400 mb-1.5 text-xs font-bold">로컬 폴더 선택 (C:\Users\LEEJAEJUN\IdeaProjects 하위)</label>
+                                <select 
+                                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 focus:border-emerald-500 outline-none text-sm"
+                      
+base_agent = agent_map.get(agent_name, {})
+agent_engine = base_agent.get("engine", "Gemini-Flash")
+model_name = ENGINE_MAP.get(agent_engine, "gemini-2.5-flash")
+
+print(f"⚡ [{agent_name}] 자동 배정 분석 시작 → 엔진: {agent_engine} ({model_name}), 프로젝트: {agent_projects}, DB필터: {db_filter}")
+agent_data = {
+"name": agent_name,
+"engine": agent_engine,
+"role": agent_role,
+"assignedProjects": agent_projects
+}
+
+if model_name == "claude-cli":
+prompt = build_claude_cli_p
+log_images.append(f"data:{content_type};base64,{b64_data}")
+except Exception as img_err:
+print(f"⚠️ Teams Webhook 이미지 다운로드 실패: {img_err}")
+
+print(f"💬 [Teams Webhook] 메시지 수신: {clean_text} (Jira: {jira_key}, 이미지 첨부: {len(log_images)}개)")
+
+# 코어 오케스트레이션 파이프라인 구동 (기본값 설정 사용)
+
+print(f"💬 [Teams Webhook] 메시지 수신: {clean_text} (Jira: {jira_key}, 이미지 첨부: {len(log_images)}개)")
+
+# 코어 오케스트레이션 파이프라인 구동 (기본값 설정 사용)
+result_data = await run_auto_orchestration_core(
+jira_key=jira_key,
+log_text=clean_text,
+log_images=log_images,
+available_agents=DEFAULT_AGENTS,
+available_projects=DEFAULT_PROJECTS,
+print(f"✅ [{agent_name}] Gemini 분석 완료 ({len(result)}자)")
+
+return (agent_name, result)
+
+agent_results = list(await asyncio.gather(
+*[analyze_auto_agent(a) for a in assignments]
+))
+print(f"✅ [2단계] 전체 {len(agent_results)}개 에이전트 분석 완료!")
+
+# 2단계 완료: 팀장 검토/통합 리포트 단계로 진입
+                                     </div>
+                                 </div>
+                                 {/* 팀장 배정 결과 카드 (배정 계획이 존재할 때만 표시) */}
+                                 {(leaderStatus?.assignments || autoPlan?.assignments) && (
+                                     <div className="bg-amber-500/5 border border-amber-500/30 rounded-xl p-4 space-y-3 shadow-lg mt-4">
+                                         <h3 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                                             <Crown className="w-3.5 h-3.5" /> 👔 팀장 자동 업무 배정서
+                                         </h3>
+                                         <div className="space-y-2">
+                                             {(leaderStatus?.assignments || autoPlan?.assignments)?.map((assignment: any, i: number) => (
+                                                 <div key={i} className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2.5 flex items-center justify-between text-xs">
+                                                     <div className="flex items-center gap-2">
+                                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-extrabold">
+                                                             {assignment.role === 'backend' ? 'BE' : assignment.role === 'frontend' ? 'FE' : assignment.role.toUpperCase()}
+                                                         </span>
+                                                         <span className="font-extrabold text-slate-200">{assignment.agent_name}</span>
+                                                     </div>
+                                                     <div className="text-right">
+                                                         <span className="text-[10px] text-slate-400 font-bold">전담 도메인: </span>
+                                                         <span className="text-emerald-400 font-bold">{assignment.projects?.join(', ') || '대기'}</span>
+                                                     </div>
+                                                 </div>
+                                             ))}
+                                         </div>
+                                         <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic text-right">
+                                             * 팀장이 에이전트의 역량과 스트레스를 반영하여 최적 배정한 결과입니다.
+                                         </p>
+                                     </div>
+                                 )}
+                             </div>
+                        )}
+                    </div>
+                </div>
+    );
+}
+export default function App() {
+    return (
+        <AgentsProvider>
+                                                      {agent.isActive && (
+                                                          <div className="flex justify-end pt-1.5 border-t border-slate-900/60 mt-1.5">
+                                                              <button 
+                                                                  onClick={(e) => {
+                                                                      e.stopPropagation();
+                                                                      handleGiveCoffee(agent.id);
+                                                                  }} 
+                                                                  className="text-[9px] flex items-center gap-0.5 px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded shadow-sm transition-colors"
+                                                              >
+                                                                  ☕ 커피 주기
+                                                              </button>
+                                                          </div>
+                                                      )}
+                                                  </div>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                                  {/* 팀장 배정 결과 카드 (배정 계획이 존재할 때만 표시) */}
+                                  {(leaderStatus?.assignments || autoPlan?.assignments) && (
+                                      <div className="bg-amber-500/5 border border-amber-500/30 rounded-xl p-4 space-y-3 shadow-lg mt-4">
+                                          <h3 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                                              <Crown className="w-3.5 h-3.5" /> 👔 팀장 자동 업무 배정서
+                                          </h3>
+                                          <div className="space-y-2">
+                                              {(leaderStatus?.assignments || autoPlan?.assignments)?.map((assignment: any, i: number) => (
+                                                  <div key={i} className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2.5 flex items-center justify-between text-xs">
+                                                      <div className="flex items-center gap-2">
+                                                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-extrabold">
+                                                              {assignment.role === 'backend' ? 'BE' : assignment.role === 'frontend' ? 'FE' : assignment.role.toUpperCase()}
+                                                          </span>
+                                                          <span className="font-extrabold text-slate-200">{assignment.agent_name}</span>
+                                                      </div>
+                                                      <div className="text-right">
+                                                          <span className="text-[10px] text-slate-400 font-bold">전담 도메인: </span>
+                                                          <span className="text-emerald-400 font-bold">{assignment.projects?.join(', ') || '대기'}</span>
+                                                      </div>
+                                                  </div>
+                                              ))}
+                                          </div>
+                                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic text-right">
+                                              * 팀장이 에이전트의 역량과 스트레스를 반영하여 최적 배정한 결과입니다.
+                                          </p>
+                                      </div>
+                                  )}
+                              </div>
+                          )}
+                          {/* ── 팀즈 연동 탭 콘텐츠 ── */}
+                          {agentPanelTab === 'teams' && (
+                              <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
+                                  {/* Teams 헤더 */}
+                                  <div className="bg-slate-950/80 border border-slate-800 rounded-t-xl p-3 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                          <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
+                                          <span className="text-xs font-black text-indigo-400">Microsoft Teams Chat (시뮬레이터)</span>
+                                      </div>
+                                      <button 
+                                          onClick={() => {
+                                              setTeamsChatLog([
+                                                  {
+                                                      id: 'welcome',
+                                                      sender: 'bot',
+                                                      text: '👋 안녕하세요! GS 리테일 AI 관제 봇입니다.\n\n이곳은 **Teams 연동 시뮬레이터** 공간입니다. 하단 입력창에 `@AI GRIT-XXXXXX 분석해줘` 형식의 명령어를 입력하거나, 클립보드 캡처 이미지를 붙여넣어(Ctrl+V) 전송해보세요. 팀장이 인력을 자동 배정하여 분석을 처리합니다.',
+                                                      timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+                                                  }
+                                              ]);
+                                          }}
+                                          className="text-[10px] text-slate-500 hover:text-slate-400 underline font-bold"
+                                      >
+                                          대화 초기화
+                                      </button>
+                                  </div>
+                                  {/* Teams 채팅 로그 영역 */}
+                                  <div className="flex-1 bg-slate-950/40 border-x border-b border-slate-800 p-4 overflow-y-auto space-y-4 custom-scrollbar flex flex-col">
+                                      {teamsChatLog.map((msg) => {
+                                          const isBot = msg.sender === 'bot';
+                                          const isWelcome = msg.id === 'welcome';
+                                          
+                                          return (
+                                              <div 
+                                                  key={msg.id} 
+                                                  className={`flex items-start gap-2.5 ${!isBot ? 'flex-row-reverse' : ''}`}
+                                              >
+                                                  {/* 아바타 */}
+                                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border text-sm font-bold flex-shrink-0 ${
+                                                      isBot 
+                                                          ? 'bg-indigo-950 border-indigo-500/30 text-indigo-400' 
+                                                          : 'bg-emerald-950 border-emerald-500/30 text-emerald-400'
+                                                  }`}>
+                                                      {isBot ? '👔' : '👤'}
+                                                  </div>
+                                                  {/* 말풍선 본체 */}
+                                                  <div className={`flex flex-col max-w-[85%] ${!isBot ? 'items-end' : ''}`}>
+                                                      {/* 발신인 및 시간 */}
+                                                      <div className="flex items-center gap-1.5 mb-1 text-[10px] text-slate-500 font-bold">
+                                                          <span>{isBot ? 'AI 관제 봇' : '사용자'}</span>
+                                                          <span>·</span>
+                                                          <span>{msg.timestamp}</span>
+                                                      </div>
+                                                      {/* 내용 말풍선 */}
+                                                      <div className={`rounded-2xl p-3.5 text-xs shadow-md border ${
+                                                          !isBot 
+                                                              ? 'bg-indigo-600/90 border-indigo-500 text-white rounded-tr-none'
+                                                              : isWelcome
+                                                                  ? 'bg-slate-900 border-slate-800 text-slate-300 rounded-tl-none leading-relaxed whitespace-pre-wrap'
+                                                                  : msg.status === 'completed'
+                                                                      ? 'bg-slate-900 border-emerald-500/40 text-slate-300 rounded-tl-none w-full'
+                                                                      : msg.status === 'error'
+                                                                          ? 'bg-rose-950/20 border-rose-900/60 text-rose-300 rounded-tl-none'
+                                                                          : 'bg-slate-900 border-slate-800 text-indigo-300 rounded-tl-none animate-pulse flex items-center gap-2'
+                                                      }`}>
+                                                          {/* 봇 진행 중인 상태 */}
+                                                          {isBot && msg.status && msg.status !== 'completed' && msg.status !== 'error' && (
+                                                              <div className="flex items-center gap-2.5 font-bold">
+                                                                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                                                                  <span>{msg.text}</span>
+                                                              </div>
+                                                          )}
+                                                          {/* 일반 텍스트 출력 (웰컴이나 사용자 메시지, 혹은 에러) */}
+                                                          {(!msg.status || msg.status === 'error' || isWelcome) && (
+                                                              <div className="whitespace-pre-wrap leading-relaxed">
+                                                                  {msg.text}
+                                                              </div>
+                                                          )}
+                                                          {/* 사용자 메시지에 포함된 첨부 이미지들 */}
+                                                          {!isBot && msg.images && msg.images.length > 0 && (
+                                                              <div className="mt-2.5 grid grid-cols-1 gap-2">
+                                                                  {msg.images.map((img, i) => (
+                                                                      <img 
+                                                                          key={i} 
+                                                                          src={img} 
+                                                                          alt="pasted_capture" 
+                                                                          className="max-h-36 rounded-lg object-contain border border-indigo-400/30" 
+                                                                      />
+                                                                  ))}
+                                                              </div>
+                                                          )}
+                                                          {/* 완료 상태의 Adaptive Card 형태 보고서 카드 */}
+                                                          {isBot && msg.status === 'completed' && (
+                                                              <div className="space-y-4">
+                                                                  <div className="border-b border-slate-800 pb-2.5 flex items-center justify-between">
+                                                                      <span className="font-extrabold text-emerald-400 text-sm flex items-center gap-1.5">
+                                                                          ✨ Teams 오케스트레이션 분석 완료
+                                                                      </span>
+                                                                      <span className="text-[9px] font-mono bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">
+                                                                          통합 리포트 발행
+                                                                      </span>
+                                                                  </div>
+                                                                  {/* 배정 정보 */}
+                                                                  {msg.resultData?.plan?.assignments && (
+                                                                      <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800 text-[11px] space-y-1.5">
+                                                                          <div className="font-extrabold text-slate-400">👔 팀장 자동 인력 배정 계획:</div>
+                                                                          {msg.resultData.plan.assignments.map((a: any, i: number) => (
+                                                                              <div key={i} className="text-slate-300 flex items-center gap-1">
+                                                                                  <span className="text-emerald-400 font-bold">✓</span>
+                                                                                  <span><strong>{a.agent_name}</strong> → {a.projects?.join(', ')}</span>
+                                                                              </div>
+                                                                          ))}
+                                                                      </div>
+                                                                  )}
+                                                                  {/* 본문 메시지 */}
+                                                                  <div className="text-slate-300 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto pr-1 text-[11.5px] font-medium custom-scrollbar border border-slate-800/40 p-2.5 rounded-lg bg-slate-950/20">
+                                                                      {msg.text.replace('### 👔 팀장 자동 배정 분석 완료\n\n', '').replace('### 👔 팀장 자동 배정 분석 완료\n\n', '')}
+                                                                  </div>
+                                                                  
+                                                                  <div className="text-[10px] text-slate-500 font-semibold italic text-right">
+                                                                      * 전체 리포트와 비주얼 흐름도는 중앙 화면의 뷰어에 동기화되었습니다.
+                                                                  </div>
+                                                              </div>
+                                                          )}
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          );
+                                      })}
+                                  </div>
+                                  {/* 첨부된 이미지 미리보기 (채팅 전송 전 대기열) */}
+                                  {attachedImages.length > 0 && (
+                                      <div className="bg-slate-900 border-x border-slate-850 p-3 flex gap-3.5 overflow-x-auto custom-scrollbar">
+                                          {attachedImages.map((img, idx) => (
+                                              <div key={idx} className="relative w-16 h-16 border border-indigo-500/30 rounded-lg overflow-hidden bg-slate-950 flex-shrink-0 flex items-center justify-center">
+                                                  <img src={img} alt="attached" className="w-full h-full object-cover" />
+                                                  <button 
+                                                      onClick={() => setAttachedImages(prev => prev.filter((_, i) => i !== idx))} 
+                                                      className="absolute top-0.5 right-0.5 bg-rose-600/90 text-white rounded-full p-0.5 text-[8px] hover:bg-rose-500 transition-colors w-4 h-4 flex items-center justify-center shadow-md font-black"
+                                                  >
+                                                      ✕
+                                                  </button>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  )}
+                                  {/* Teams 채팅 입력창 */}
+                                  <div className="bg-slate-900 border-x border-b border-slate-800 rounded-b-xl p-3 flex gap-2">
+                                      <input
+                                          type="text"
+                                          value={teamsInput}
+                                          onChange={(e) => setTeamsInput(e.target.value)}
+                                          onKeyDown={(e) => {
+                                              if (e.key === 'Enter' && !e.shiftKey) {
+                                                  e.preventDefault();
+                                                  handleSendTeamsMessage();
+                                              }
+                                          }}
+                                          disabled={isAnalyzing}
+                                          placeholder={isAnalyzing ? "분석이 진행되는 동안 대기해주세요..." : "@AI GRIT-2309522 내용분석해줘 (Ctrl+V로 캡처 추가)"}
+                                          className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 transition-all font-medium disabled:opacity-50"
+                                      />
+                                      <button
+                                          onClick={handleSendTeamsMessage}
+                                          disabled={isAnalyzing || (!teamsInput.trim() && attachedImages.length === 0)}
+                                          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-black text-xs transition-colors flex items-center justify-center gap-1.5 shadow active:scale-95"
+                                      >
+                                          전송
+                                      </button>
+                                  </div>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              </div>
+      );
+  }
+  export default function App() {
+      return (
+          <AgentsProvider>
+              <Dashboard />
+          </AgentsProvider>
+      );
+  }
