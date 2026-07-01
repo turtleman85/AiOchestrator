@@ -224,8 +224,12 @@ function Dashboard() {
     const officeRef = useRef<HTMLDivElement>(null);
     const [localDirectories, setLocalDirectories] = useState<string[]>([]);
 
-    const [agentPanelTab, setAgentPanelTab] = useState<'manual' | 'auto'>('manual');
+    const [agentPanelTab, setAgentPanelTab] = useState<'manual' | 'auto' | 'teams'>('manual');
     const [logInput, setLogInput] = useState('');
+    const [teamsInput, setTeamsInput] = useState('');
+    const [teamsChatLog, setTeamsChatLog] = useState<any[]>([{ id: 'bot_init', sender: 'bot', text: '👋 안녕하세요! GS 리테일 AI 관제 봇입니다.\n\n이곳은 **Teams 연동 시뮬레이터** 공간입니다. 하단 입력창에 `@AI GRIT-XXXXXX 분석해줘` 형식의 명령어를 입력하거나, 클립보드 캡처 이미지를 붙여넣어(Ctrl+V) 전송해보세요.', timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) }]);
+    const [useSelfReflection, setUseSelfReflection] = useState(true);
+    const [useVerifyLoop, setUseVerifyLoop] = useState(true);
     const [attachedImages, setAttachedImages] = useState<string[]>([]);
     
     const handlePaste = (e: React.ClipboardEvent) => {
@@ -277,6 +281,73 @@ function Dashboard() {
     const [selectedReportAgentId, setSelectedReportAgentId] = useState<string>('merged');
     const [lastTokenUsage, setLastTokenUsage] = useState<any>(null);
     const [loadingLogs, setLoadingLogs] = useState<string[]>([]);
+
+    // Global Polling for Background Tasks (Teams/Email)
+    useEffect(() => {
+        const intervalId = window.setInterval(async () => {
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/v1/orchestrate/auto/status');
+                if (!res.ok) return;
+                const statusData = await res.json();
+                
+                // If a background task is running but UI is not analyzing
+                if (statusData.step !== 'idle' && statusData.step !== 'completed' && statusData.step !== 'error' && !isAnalyzing) {
+                    setIsAnalyzing(true);
+                    setAgentPanelTab('auto');
+                    setLeaderStatus({
+                        step: statusData.step,
+                        message: statusData.message,
+                        assignments: statusData.assignments
+                    });
+                }
+                
+                // If UI is analyzing via Auto Mode, sync state from backend
+                if (isAnalyzing && agentPanelTab === 'auto') {
+                    setLeaderStatus({
+                        step: statusData.step,
+                        message: statusData.message,
+                        assignments: statusData.assignments
+                    });
+                    
+                    const step = statusData.step;
+                    const assignments = statusData.assignments || [];
+                    
+                    if (step === 'analyzing') {
+                        assignments.forEach((asg: any) => {
+                            const matched = agents.find(a => a.name === asg.agent_name);
+                            const projStr = asg.projects ? asg.projects.join(', ') : asg.project;
+                            if (matched) updateAgentStatus(matched.id, 'working', `${projStr} 분석 중 ⌨️`);
+                        });
+                        updateAgentStatus('agent_leader', 'working', '팀원들 작업 모니터링 중 👔');
+                    } else if (step === 'reviewing' || step === 'reflecting') {
+                        assignments.forEach((asg: any) => {
+                            const matched = agents.find(a => a.name === asg.agent_name);
+                            if (matched) updateAgentStatus(matched.id, 'debating', '회의실에서 팀장과 의견 검토 중 💬');
+                        });
+                        updateAgentStatus('agent_leader', 'debating', '회의실에서 팀원 리포트 최종 검수 중 👔');
+                    } else if (step === 'completed' || step === 'error') {
+                        // Completed! Populate results.
+                        if (statusData.result_html) {
+                            setCurrentReportHtml(statusData.result_html);
+                            setReportViewTab('visual');
+                        }
+                        if (statusData.result) setCurrentReportText(statusData.result);
+                        if (statusData.agent_reports) setAgentReports(statusData.agent_reports);
+                        if (statusData.token_usage) setLastTokenUsage(statusData.token_usage);
+                        
+                        setFinalReport(statusData.message || '완료되었습니다.');
+                        setIsAnalyzing(false);
+                        
+                        // Reset backend to idle to prevent loop
+                        await fetch('http://127.0.0.1:8000/api/v1/orchestrate/auto/status/reset', { method: 'POST' }).catch(() => {});
+                    }
+                }
+            } catch (err) {
+                // Background polling errors can be ignored
+            }
+        }, 1500);
+        return () => window.clearInterval(intervalId);
+    }, [isAnalyzing, agentPanelTab, agents]);
 
     useEffect(() => {
         if (!isAnalyzing) {
@@ -612,7 +683,15 @@ function Dashboard() {
                     activeTeam.forEach(agent => {
                         updateAgentStatus(agent.id, 'debating');
                     });
-                    setFinalReport(prev => prev + '\n\n[통합 리뷰]\n- 개별 분석을 마치고 회의실에서 토론을 시작합니다.');
+                    
+                    // 팀장도 회의실로 호출
+                    updateAgentStatus('agent_leader', 'debating', '회의실에서 결과 검수 중');
+                    
+                    if (activeTeam.length === 1) {
+                        setFinalReport(prev => prev + '\n\n[결과 검수]\n- 팀장 주재 하에 단일 에이전트의 분석 결과를 검토합니다.');
+                    } else {
+                        setFinalReport(prev => prev + '\n\n[통합 리뷰]\n- 팀장 주재 하에 개별 분석을 마치고 회의실에서 토론을 시작합니다.');
+                    }
                     
                     // 회의실에서 최소 3초 대기
                     meetingTimeoutId = window.setTimeout(() => {
@@ -668,47 +747,6 @@ function Dashboard() {
 
         const activeTeam = agents.filter(a => a.isActive && a.role !== 'leader');
         
-        const pollStatus = async () => {
-            try {
-                const res = await fetch('http://127.0.0.1:8000/api/v1/orchestrate/auto/status');
-                const statusData = await res.json();
-                
-                setLeaderStatus({
-                    step: statusData.step,
-                    message: statusData.message,
-                    assignments: statusData.assignments
-                });
-
-                const step = statusData.step;
-                const assignments = statusData.assignments || [];
-                
-                if (step === 'planning') {
-                    // 다 lounge 대기
-                } else if (step === 'analyzing') {
-                    assignments.forEach((asg: any) => {
-                        const matched = agents.find(a => a.name === asg.agent_name);
-                        if (matched) {
-                            updateAgentStatus(matched.id, 'working', `${asg.projects.join(', ')} 분석 중 ⌨️`);
-                        }
-                    });
-                    updateAgentStatus('agent_leader', 'working', '팀원들 작업 모니터링 중 👔');
-                } else if (step === 'reviewing') {
-                    assignments.forEach((asg: any) => {
-                        const matched = agents.find(a => a.name === asg.agent_name);
-                        if (matched) {
-                            updateAgentStatus(matched.id, 'debating', '회의실에서 팀장과 의견 검토 중 💬');
-                        }
-                    });
-                    updateAgentStatus('agent_leader', 'debating', '회의실에서 팀원 리포트 최종 검수 중 👔');
-                }
-            } catch (err) {
-                console.error('Failed to poll status:', err);
-            }
-        };
-
-        pollStatus();
-        const pollTimer = window.setInterval(pollStatus, 2000);
-
         try {
             const response = await fetch('http://127.0.0.1:8000/api/v1/orchestrate/auto', {
                 method: 'POST',
@@ -732,54 +770,21 @@ function Dashboard() {
                 })
             });
 
-            window.clearInterval(pollTimer);
-
+            // The global poller will handle state updates and UI rendering.
+            // We just wait for the request to complete here to handle hard errors.
             const data = await response.json();
-            if (response.ok && data.status === 'success') {
-                setFinalReport(data.result);
-                if (data.result_html) {
-                    setReportViewTab('visual');
-                } else {
-                    setReportViewTab('markdown');
-                }
-                
-                if (data.agent_reports) {
-                    setAgentReports(data.agent_reports);
-                }
-
-                if (data.token_usage) {
-                    setLastTokenUsage(data.token_usage);
-                }
-
-                setLeaderStatus({
-                    step: 'completed',
-                    message: '✨ 최종 통합 리포트 작성이 완료되었습니다!'
-                });
-
-                const finalAssignments = data.plan?.assignments || [];
-                const totalTokensUsed = data.token_usage?.total_tokens || data.result.length;
-                if (finalAssignments.length > 0) {
-                    const shareLoad = Math.floor(totalTokensUsed / finalAssignments.length);
-                    finalAssignments.forEach((assignment: any) => {
-                        const matchedAgent = agents.find(ag => ag.name === assignment.agent_name);
-                        if (matchedAgent) {
-                            increaseAgentLoad(matchedAgent.id, shareLoad);
-                        }
-                    });
-                    increaseAgentLoad('agent_leader', totalTokensUsed);
-                }
-
-            } else {
+            if (!response.ok || data.status !== 'success') {
                 setFinalReport(`[오류 발생]\n백엔드 처리 중 오류가 발생했습니다.\n상세: ${data.detail || '알 수 없는 오류'}`);
                 setLeaderStatus({
                     step: 'error',
                     message: '⚠️ 오류 발생'
                 });
+                setIsAnalyzing(false);
             }
         } catch (error) {
-            window.clearInterval(pollTimer);
             console.error('API Error:', error);
             setFinalReport(`[오류 발생]\n백엔드 오케스트레이터 호출에 실패했습니다.\n상세: ${String(error)}`);
+            setIsAnalyzing(false);
             setLeaderStatus({
                 step: 'error',
                 message: '⚠️ 오류 발생'
@@ -797,7 +802,7 @@ function Dashboard() {
         const agent = agents.find(a => a.id === agentId);
         if (!agent) return;
         
-        const req = individualInputs[agentId] || { jiraKey: '', logInput: '' };
+        const req = individualRequests[agentId] || { jiraKey: '', logInput: '' };
         
         if (agent.status !== 'idle' || isAnalyzing) return;
         updateAgentStatus(agent.id, 'working');

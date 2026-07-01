@@ -9,6 +9,14 @@
                 "D:\\",
                 "C:\\Users\\LEEJAEJUN\\IdeaProjects"
             ]
+        },
+        "opensearch": {
+            "command": "python",
+            "args": ["c:\\Users\\LEEJAEJUN\\IdeaProjects\\aiOrchestrator\\mcp_opensearch_server.py"]
+        },
+        "datadog_monitoring": {
+            "command": "python",
+            "args": ["c:\\Users\\LEEJAEJUN\\IdeaProjects\\aiOrchestrator\\mcp_monitoring_server.py"]
         }
     }
 }

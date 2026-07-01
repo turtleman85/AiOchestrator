@@ -31,6 +31,13 @@ from google import genai
 # 💡 .env 보안 파일 로드
 load_dotenv()
 
+import logging
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.args and len(record.args) >= 3 and record.args[2] != "/api/v1/orchestrate/auto/status"
+
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 
 def convert_markdown_to_html(markdown_text: str, title: str = "AI Orchestrator Report") -> str:
     lines = markdown_text.split('\n')
@@ -170,7 +177,7 @@ def convert_markdown_to_html(markdown_text: str, title: str = "AI Orchestrator R
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{title}}</title>
+    <title>{title}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {{
@@ -248,7 +255,7 @@ def convert_markdown_to_html(markdown_text: str, title: str = "AI Orchestrator R
                     SYSTEM ANALYTICS REPORT
                 </div>
                 <h1 class="text-2xl md:text-3xl font-black text-white tracking-tight leading-none drop-shadow-md">
-                    {{title}}
+                    {title}
                 </h1>
             </div>
             <div class="text-right font-mono text-[10px] text-slate-500">
@@ -464,8 +471,7 @@ def decode_output(data):
     return data.decode("utf-8", errors="replace")
 
 async def call_claude_cli_async(prompt, cwd=None, role="backend"):
-    """로컬 Claude Code CLI를 subprocess로 호출. 역할별 최소 MCP만 로드하여 초기화 시간 최소화."""
-    cmd = ["claude", "-p", "--output-format", "text", "--dangerously-skip-permissions"]
+    cmd = ["claude.cmd" if os.name == "nt" else "claude", "-p", "--output-format", "text", "--dangerously-skip-permissions"]
 
     # 💡 역할별 MCP 설정 파일로 필요한 서버만 로드 (7개 전부 → 1~2개)
     mcp_config_path = MCP_ROLE_CONFIG.get(role)
@@ -478,33 +484,32 @@ async def call_claude_cli_async(prompt, cwd=None, role="backend"):
 
     async with CLAUDE_SEMAPHORE:
         print(f"🔵 [Claude CLI] 프로세스 시작 (cwd: {work_dir}, role: {role})")
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=work_dir,
-        )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(input=full_prompt.encode("utf-8")),
+        
+        loop = asyncio.get_event_loop()
+        def _run_subprocess():
+            import subprocess
+            return subprocess.run(
+                cmd,
+                input=full_prompt.encode("utf-8"),
+                capture_output=True,
+                cwd=work_dir,
                 timeout=CLAUDE_TIMEOUT_SECONDS
             )
-        except asyncio.TimeoutError:
+
+        try:
+            proc = await loop.run_in_executor(None, _run_subprocess)
+        except subprocess.TimeoutExpired:
             print(f"🔴 [Claude CLI] {CLAUDE_TIMEOUT_SECONDS}초 타임아웃 → 프로세스 강제 종료")
-            proc.kill()
-            await proc.wait()
             raise Exception(f"Claude CLI 타임아웃 ({CLAUDE_TIMEOUT_SECONDS}초 초과)")
 
         if proc.returncode != 0:
-            err_stdout = decode_output(stdout)
-            err_stderr = decode_output(stderr)
+            err_stdout = decode_output(proc.stdout)
+            err_stderr = decode_output(proc.stderr)
             error_msg = f"stdout: {err_stdout}\nstderr: {err_stderr}"
             print(f"🔴 [Claude CLI] 에러 발생 (exit code {proc.returncode}): {error_msg[:1000]}")
             raise Exception(f"Claude CLI 에러 (exit code {proc.returncode}): {error_msg[:1000]}")
 
-        result = decode_output(stdout)
+        result = decode_output(proc.stdout)
         print(f"🟢 [Claude CLI] 프로세스 완료 (결과 {len(result)}자)")
 
         # 💡 Claude CLI 토큰 추정치 누적 (1토큰 ≈ 3글자 기준)
@@ -521,7 +526,7 @@ async def call_claude_cli_async(prompt, cwd=None, role="backend"):
 
 
 # --- [🧠 에이전트별 역할 특화 프롬프트 빌더] ---
-def build_agent_prompt(agent, md_ctx, db_ctx, navi_ctx, jira_info, log_text):
+def build_agent_prompt(agent, md_ctx, db_ctx, navi_ctx, jira_info, log_text, engine_label="Gemini"):
     """에이전트의 role에 따라 전문 분야 특화 프롬프트를 생성합니다. (Gemini API용 - 컨텍스트 삽입)"""
     agent_name = agent.get("name", "에이전트")
     agent_role = agent.get("role", "backend")
@@ -560,7 +565,7 @@ def build_agent_prompt(agent, md_ctx, db_ctx, navi_ctx, jira_info, log_text):
         {navi_ctx if navi_ctx else '내비게이션 맵 데이터가 로드되지 않았습니다.'}
 
         ## 출력 양식 (마크다운)
-        ### 🖥️ 프론트엔드 분석 결과 ({agent_name})
+        ### 🖥️ 프론트엔드 분석 결과 ({agent_name}) - {engine_label}
         #### 관련 화면 매핑 (SCREN_ID / FILE_NM)
         #### XML 파일 경로 및 호출 흐름
         #### 공통 모듈 연동 패턴
@@ -577,6 +582,7 @@ def build_agent_prompt(agent, md_ctx, db_ctx, navi_ctx, jira_info, log_text):
         4. ⚠️ **중요: 실제 소스 코드가 제공되지 않거나 확인되지 않으면, 일반적인 로직 흐름이나 구조를 상상(Hallucination)해서 답변하지 마십시오.** 소스 코드 경로, JSP 구조, API 호출 흐름 등을 절대 추정하거나 임의로 작성하지 마십시오. 직접 명백하게 확인되지 않은 내용은 "확인된 소스 코드가 없어 분석할 수 없습니다"라고 명시하고 임의의 설명을 덧붙이지 마십시오.
         5. ⚠️ **중요:** 배정되지 않은 프로젝트나 제공되지 않은 데이터베이스 정보(ERD 포함)에 대해서는 굳이 분석하거나 언급하지 마십시오. "제공된 ERD에서 정확한 테이블을 찾을 수 없습니다"와 같은 기계적인 문구를 적지 말고, 관련 정보가 없으면 해당 항목의 작성을 생략하거나 배제하십시오.
         6. 당신의 분석 범위 밖(프론트엔드 UI/배치)은 절대 언급하지 마십시오.
+        7. 💡 **만약 로그 분석 도구(OpenSearch 등)가 대시보드 바로가기 링크(URL)를 반환했다면, 분석 리포트의 맨 마지막에 반드시 해당 링크를 마크다운 형식으로 제공하십시오.**
 
         {common_context}
 
@@ -584,7 +590,7 @@ def build_agent_prompt(agent, md_ctx, db_ctx, navi_ctx, jira_info, log_text):
         {db_ctx if db_ctx else '데이터베이스 스키마가 로드되지 않았습니다.'}
 
         ## 출력 양식 (마크다운)
-        ### ⚙️ 백엔드/DB 분석 결과 ({agent_name})
+        ### ⚙️ 백엔드/DB 분석 결과 ({agent_name}) - {engine_label}
         #### 주요 원인 분석 (Root Cause)
         #### Controller/Service 경로 및 로직 흐름
         #### JSP/Include 구조 (해당 시)
@@ -593,7 +599,7 @@ def build_agent_prompt(agent, md_ctx, db_ctx, navi_ctx, jira_info, log_text):
 
 
 # --- [🧠 Claude CLI용 경량 프롬프트 빌더] ---
-def build_claude_cli_prompt(agent, jira_info, log_text):
+def build_claude_cli_prompt(agent, jira_info, log_text, engine_label="Claude-CLI"):
     """Claude CLI 에이전트용 경량 프롬프트. MCP가 직접 파일/DB에 접근하므로 컨텍스트 삽입 불필요."""
     agent_name = agent.get("name", "에이전트")
     agent_role = agent.get("role", "backend")
@@ -622,7 +628,7 @@ CLAUDE.md 파일이 있다면 반드시 먼저 읽고 아키텍처를 파악하�
 {jira_info}
 
 ## 출력 양식 (마크다운)
-### 🖥️ 프론트엔드 분석 결과 ({agent_name})
+### 🖥️ 프론트엔드 분석 결과 ({agent_name}) - {engine_label}
 #### 관련 화면 매핑 (SCREN_ID / FILE_NM)
 #### XML 파일 경로 및 호출 흐름
 #### 공통 모듈 연동 패턴"""
@@ -653,7 +659,7 @@ CLAUDE.md 파일이 있다면 반드시 먼저 읽고 아키텍처를 파악하�
 {jira_info}
 
 ## 출력 양식 (마크다운)
-### ⚙️ 백엔드/DB 분석 결과 ({agent_name})
+### ⚙️ 백엔드/DB 분석 결과 ({agent_name}) - {engine_label}
 #### 주요 원인 분석 (Root Cause)
 #### Controller/Service 경로 및 로직 흐름
 #### JSP/Include 구조 (해당 시)
@@ -1255,7 +1261,7 @@ async def process_orchestration(request: Request):
 
                 if is_claude_cli:
                     # 🆕 Claude CLI 하네스 호출 (MCP 서버 활용, 컨텍스트 자동 탐색)
-                    prompt = build_claude_cli_prompt(agent_data, agent_jira_info, agent_log_text)
+                    prompt = build_claude_cli_prompt(agent_data, agent_jira_info, agent_log_text, engine_label="Claude-CLI")
 
                     # 첫 번째 프로젝트 폴더를 작업 디렉토리로 설정
                     primary_project = next((p for p in agent_projects if p != "db_meta"), None)
@@ -1267,13 +1273,13 @@ async def process_orchestration(request: Request):
                     except Exception as cli_err:
                         print(f"⚠️ [{agent_name}] Claude CLI 독립 분석 실패 ({cli_err}). Gemini Flash로 자동 폴백합니다.")
                         md_ctx, db_ctx, navi_ctx = get_smart_context(agent_projects, agent_log_text)
-                        fallback_prompt = build_agent_prompt(agent_data, md_ctx, db_ctx, navi_ctx, agent_jira_info, agent_log_text)
+                        fallback_prompt = build_agent_prompt(agent_data, md_ctx, db_ctx, navi_ctx, agent_jira_info, agent_log_text, engine_label="Gemini-Fallback")
                         result = await call_gemini_async(gemini_client, "gemini-2.5-flash", fallback_prompt, log_images)
                         print(f"✅ [{agent_name}] Gemini Flash 폴백 분석 완료! (결과 {len(result)}자)")
                 else:
                     # 기존 Gemini API 호출 (컨텍스트 수동 삽입)
                     md_ctx, db_ctx, navi_ctx = get_smart_context(agent_projects, agent_log_text)
-                    prompt = build_agent_prompt(agent_data, md_ctx, db_ctx, navi_ctx, agent_jira_info, agent_log_text)
+                    prompt = build_agent_prompt(agent_data, md_ctx, db_ctx, navi_ctx, agent_jira_info, agent_log_text, engine_label=model_name)
                     result = await call_gemini_async(gemini_client, model_name, prompt, log_images)
                     print(f"✅ [{agent_name}] Gemini 독립 분석 완료! (결과 {len(result)}자)")
             except Exception as agent_err:
@@ -1537,9 +1543,23 @@ auto_status = {
 }
 
 @app.get("/api/v1/orchestrate/auto/status")
-async def get_auto_orchestration_status():
+async def get_auto_orchestrate_status():
     global auto_status
     return auto_status
+
+@app.post("/api/v1/orchestrate/auto/status/reset")
+async def reset_auto_orchestrate_status():
+    global auto_status
+    auto_status = {
+        "step": "idle",
+        "message": "대기 중",
+        "assignments": [],
+        "result": None,
+        "result_html": None,
+        "agent_reports": None,
+        "token_usage": None
+    }
+    return {"status": "reset"}
 
 
 # --- [🤖 AUTO 오케스트레이션 기본값 및 코어 로직] ---
@@ -1559,7 +1579,7 @@ DEFAULT_AGENTS = [
     {
         "id": "agent_be1",
         "name": "백엔드/DB 에이전트1",
-        "engine": "Gemini-Flash",
+        "engine": "Claude-CLI",
         "role": "backend",
         "status": "idle",
         "spriteAsset": "👨‍💻",
@@ -1571,7 +1591,7 @@ DEFAULT_AGENTS = [
     {
         "id": "agent_be2",
         "name": "백엔드/DB 에이전트2",
-        "engine": "Gemini-Flash",
+        "engine": "Claude-CLI",
         "role": "backend",
         "status": "idle",
         "spriteAsset": "🧙‍♂️",
@@ -1627,6 +1647,10 @@ async def run_auto_orchestration_core(
     auto_status["step"] = "planning"
     auto_status["message"] = "👔 팀장이 업무 배정 계획을 수립하고 있습니다..."
     auto_status["assignments"] = []
+    auto_status["result"] = None
+    auto_status["result_html"] = None
+    auto_status["agent_reports"] = None
+    auto_status["token_usage"] = None
 
     print(f"🤖 [Auto Core] 가동! 팀장 엔진: {leader_engine}, 팀원: {len(available_agents)}명, 프로젝트: {len(available_projects)}개")
 
@@ -1749,7 +1773,7 @@ async def run_auto_orchestration_core(
                     result = await call_claude_cli_async(prompt, cwd=cwd, role=agent_role)
                     print(f"✅ [{agent_name}] Claude CLI 분석 완료 ({len(result)}자)")
                 except Exception as cli_err:
-                    print(f"⚠️ [{agent_name}] Claude CLI 분석 실패 ({cli_err}). Gemini Flash로 자동 폴백합니다.")
+                    print(f"⚠️ [{agent_name}] Claude CLI 분석 실패 ({repr(cli_err)}). Gemini Flash로 자동 폴백합니다.")
                     md_ctx, db_ctx, navi_ctx = get_smart_context(agent_projects, log_text, db_filter=db_filter)
                     fallback_prompt = build_agent_prompt(agent_data, md_ctx, db_ctx, navi_ctx, jira_info, log_text)
                     if feedback:
@@ -1790,8 +1814,8 @@ async def run_auto_orchestration_core(
     if cannot_analyze_agents:
         print(f"⚠️ [분석 중단] 일부 에이전트가 정보를 분석할 수 없는 상태입니다: {[n for n, _ in cannot_analyze_agents]}")
         error_summary = "### ⚠️ 분석 진행 중단 (정보 부족 및 분석 불가)\n\n"
-        error_summary += "에이전트가 제공된 이미지 또는 텍스트 정보를 분석할 수 없거나 필수 지식(DB 스키마 등)이 부족하여 작업을 즉시 중단했습니다.\n"
-        error_summary += "추가적인 텍스트 힌트 제공 또는 유효한 이미지를 첨부하여 다시 시도해 주십시오.\n\n"
+        error_summary += "에이전트가 단서를 찾지 못했거나, 제공된 텍스트 정보만으로는 분석할 수 없어 작업을 중단했습니다.\n"
+        error_summary += "오픈서치 검색 결과가 없거나, 추가적인 에러 로그/텍스트 힌트가 필요할 수 있습니다.\n\n"
         for name, res in cannot_analyze_agents:
             error_summary += f"#### 🔴 {name} 분석 상태\n{res}\n\n"
             
@@ -1811,6 +1835,33 @@ async def run_auto_orchestration_core(
         auto_status["message"] = "⚠️ 정보 부족 또는 분석 불가로 작업을 즉시 중단했습니다."
         
         response_html = convert_markdown_to_html(error_summary, title="Orchestration Aborted")
+        
+        # 중단 시에도 결과 파일을 OneDrive 및 로컬에 저장
+        try:
+            target_dir = os.path.join(os.getcwd(), "artifacts", "reports")
+            os.makedirs(target_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            target_file_name = f"aborted_report_{jira_key or timestamp}.md"
+            target_file = os.path.join(target_dir, target_file_name)
+            
+            with open(target_file, "w", encoding="utf-8") as f:
+                f.write(error_summary)
+            
+            onedrive_base = r"C:\Users\LEEJAEJUN\OneDrive - GS Retail Co., Ltd"
+            if os.path.exists(onedrive_base):
+                onedrive_report_dir = os.path.join(onedrive_base, "AI_Reports")
+                os.makedirs(onedrive_report_dir, exist_ok=True)
+                
+                # 파일명 결정 (Power Automate가 감지하는 방식: _결과.txt)
+                od_file_name = f"{jira_key}_에러결과.txt" if jira_key else f"에러리포트_{datetime.now().strftime('%H%M%S')}_결과.txt"
+                onedrive_file_path = os.path.join(onedrive_report_dir, od_file_name)
+                
+                with open(onedrive_file_path, "w", encoding="utf-8") as f:
+                    f.write(error_summary)
+                print(f"💾 [OneDrive Sync] 중단 리포트 파워 오토메이트 감지용 원드라이브 복사 완료 -> {onedrive_file_path}")
+        except Exception as file_err:
+            print(f"🔴 보고서 파일 저장 실패: {file_err}")
+
         return {
             "status": "success",
             "message": "분석 불가 상황이 발생하여 프로세스를 중단했습니다.",
@@ -1984,6 +2035,14 @@ async def run_auto_orchestration_core(
     # 4단계 완료: 성공적으로 완료되었음을 마킹
     auto_status["step"] = "completed"
     auto_status["message"] = "✨ 최종 통합 리포트 작성이 완료되었습니다!"
+
+    usage = request_token_usage.get() or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    response_html = convert_markdown_to_html(final_report, title=f"AI Orchestrator Report - {jira_key or 'AUTO리포트'}")
+    
+    auto_status["result"] = final_report
+    auto_status["result_html"] = response_html
+    auto_status["agent_reports"] = agent_reports
+    auto_status["token_usage"] = usage
 
     usage = request_token_usage.get() or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     response_html = convert_markdown_to_html(final_report, title=f"AI Orchestrator Report - {jira_key or 'AUTO리포트'}")
@@ -2194,7 +2253,10 @@ async def run_orchestration_from_email(teams_message_id: str, jira_key: str, cre
             except Exception as web_err:
                 print(f"🔴 [Teams Webhook] Webhook 전송 중 에러 발생: {web_err}")
         
-        print(f"✅ [Email Core] 오케스트레이터 수행 완료! (Message ID: {teams_message_id}, 결과 리포트는 OneDrive 동기화로 전달됨)")
+        # 2. Webhook 전송 안됨/실패 시 이메일(Power Automate Fallback) 전송
+        print(f"📧 [Email Core] Webhook 전송을 생략했거나 실패했습니다. 이메일 답장(Fallback)을 시도합니다.")
+        send_email_reply(reply_to_email, reply_subject, response_text)
+        print(f"✅ [Email Core] 오케스트레이터 수행 완료! (Message ID: {teams_message_id})")
         
     except Exception as err:
         print(f"🔴 [Email Core] 처리 중 에러 발생: {err}")
