@@ -531,6 +531,9 @@ def build_agent_prompt(agent, md_ctx, db_ctx, navi_ctx, jira_info, log_text, eng
     agent_name = agent.get("name", "에이전트")
     agent_role = agent.get("role", "backend")
     projects = agent.get("assignedProjects", [])
+    agent_persona = agent.get("persona", "").strip()
+    
+    is_standard_role = agent_role.lower() in ["backend", "frontend", "leader"]
 
     common_context = f"""
     [담당 에이전트] {agent_name}
@@ -538,13 +541,29 @@ def build_agent_prompt(agent, md_ctx, db_ctx, navi_ctx, jira_info, log_text, eng
 
     [사용자 요청 사항 및 로그 데이터]
     {log_text}
-
+    """
+    
+    if is_standard_role:
+        common_context += f"""
     [지라 티켓 연동 정보]
     {jira_info}
 
     [프로젝트별 아키텍처 및 도메인 가이드 (CLAUDE.md / SKILL.md)]
     {md_ctx if md_ctx else '해당 프로젝트의 가이드 문서가 없습니다.'}
     """
+    else:
+        if jira_info:
+            common_context += f"""
+    [지라 티켓 연동 정보]
+    {jira_info}
+    """
+            
+    if agent_persona:
+        return f"""
+        {agent_persona}
+
+        {common_context}
+        """
 
     if agent_role == "frontend":
         return f"""
@@ -604,8 +623,23 @@ def build_claude_cli_prompt(agent, jira_info, log_text, engine_label="Claude-CLI
     agent_name = agent.get("name", "에이전트")
     agent_role = agent.get("role", "backend")
     projects = agent.get("assignedProjects", [])
+    agent_persona = agent.get("persona", "").strip()
 
     project_paths = ", ".join([f"C:\\Users\\LEEJAEJUN\\IdeaProjects\\{p}" for p in projects if p != "db_meta"])
+
+    if agent_persona:
+        return f"""
+        {agent_persona}
+        
+        📁 담당 프로젝트 경로: {project_paths}
+        위 프로젝트의 소스코드를 filesystem MCP를 활용하여 직접 탐색하고 분석하십시오.
+        
+        [사용자 요청 사항 및 로그 데이터]
+        {log_text}
+        
+        [지라 티켓 정보]
+        {jira_info}
+        """
 
     if agent_role == "frontend":
         return f"""당신은 GS Retail의 프론트엔드 UI/UX 전문 분석 에이전트 '{agent_name}'입니다.

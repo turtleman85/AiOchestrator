@@ -1492,17 +1492,34 @@ function Dashboard() {
                             
                             <div>
                                 <label className="block text-[10px] font-bold text-slate-400 mb-1">역할 (Role)</label>
-                                <div className="flex gap-2">
-                                    {(['backend', 'frontend', 'leader'] as const).map(role => (
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    {(['backend', 'frontend', 'leader', '기획', '디자이너', '테스터'] as const).map(presetRole => (
                                         <button 
-                                            key={role}
-                                            onClick={() => setEditingAgent({...editingAgent, role})}
-                                            className={`flex-1 py-1.5 text-xs font-bold rounded border transition-colors ${editingAgent.role === role ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-slate-900 border-slate-700 text-slate-500'}`}
+                                            key={presetRole}
+                                            onClick={() => setEditingAgent({...editingAgent, role: presetRole})}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded border transition-colors ${editingAgent.role === presetRole ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-slate-900 border-slate-700 text-slate-500 hover:bg-slate-800'}`}
                                         >
-                                            {role === 'backend' ? 'BE' : role === 'frontend' ? 'FE' : 'Leader'}
+                                            {presetRole === 'backend' ? 'BE' : presetRole === 'frontend' ? 'FE' : presetRole === 'leader' ? 'Leader' : presetRole}
                                         </button>
                                     ))}
                                 </div>
+                                <input 
+                                    type="text" 
+                                    value={editingAgent.role} 
+                                    onChange={(e) => setEditingAgent({...editingAgent, role: e.target.value})}
+                                    placeholder="직접 입력 (예: 인프라, 보안 담당자)"
+                                    className="w-full bg-[#090d16] border border-slate-700 rounded px-3 py-2 text-xs text-slate-100 outline-none focus:border-emerald-500/50"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">페르소나 프롬프트 (선택)</label>
+                                <textarea 
+                                    value={editingAgent.persona || ''} 
+                                    onChange={(e) => setEditingAgent({...editingAgent, persona: e.target.value})}
+                                    placeholder="에이전트의 구체적인 역할과 행동 지침을 입력하세요. (예: 당신은 UX 전문 디자이너입니다...)"
+                                    className="w-full bg-[#090d16] border border-slate-700 rounded px-3 py-2 text-xs text-slate-100 outline-none focus:border-emerald-500/50 min-h-[80px]"
+                                />
                             </div>
                             
                             <div>

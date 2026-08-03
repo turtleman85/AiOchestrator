@@ -9,7 +9,8 @@ export interface Agent {
     id: string;
     name: string;
     engine: EngineType;
-    role: 'backend' | 'frontend' | 'leader';
+    role: string;           // 💡 커스텀 역할 지원을 위해 string으로 변경 (기존: 'backend' | 'frontend' | 'leader')
+    persona?: string;       // 💡 사용자 정의 페르소나 (역할/행동 지침 프롬프트)
     status: AgentStatus;
     spriteAsset: string;
     message?: string;
