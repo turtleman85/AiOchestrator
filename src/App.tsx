@@ -272,6 +272,7 @@ function Dashboard() {
     const [meetingTick, setMeetingTick] = useState(0);
 
     const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+    const [orchestrationMode, setOrchestrationMode] = useState<'parallel' | 'pipeline'>('parallel');
 
     const [finalReport, setFinalReport] = useState('');
     const [currentReportHtml, setCurrentReportHtml] = useState('');
@@ -766,7 +767,8 @@ function Dashboard() {
                     run_development: runDevelopment,
                     create_branch: createBranch,
                     use_self_reflection: true,
-                    use_verify_loop: true
+                    use_verify_loop: true,
+                    orchestration_mode: orchestrationMode
                 })
             });
 
@@ -1031,6 +1033,25 @@ function Dashboard() {
                                     ))}
                                 </div>
                             )}
+
+                            {/* Orchestration Mode Selection */}
+                            <div className="border border-slate-800/80 rounded-lg p-3 bg-[#121926] mt-2 mb-1">
+                                <div className="text-[10px] font-extrabold text-slate-400 mb-2">오케스트레이션 방식</div>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setOrchestrationMode('parallel')}
+                                        className={`flex-1 py-2 text-[11px] font-bold rounded-md border transition-colors ${orchestrationMode === 'parallel' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-[#090d16] border-slate-700 text-slate-400 hover:bg-slate-800'}`}
+                                    >
+                                        병렬 스웜 모드 (기본)
+                                    </button>
+                                    <button 
+                                        onClick={() => setOrchestrationMode('pipeline')}
+                                        className={`flex-1 py-2 text-[11px] font-bold rounded-md border transition-colors ${orchestrationMode === 'pipeline' ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400' : 'bg-[#090d16] border-slate-700 text-slate-400 hover:bg-slate-800'}`}
+                                    >
+                                        순차적 파이프라인 모드
+                                    </button>
+                                </div>
+                            </div>
 
                             {/* Options Box */}
                             <div className="border border-slate-800/80 rounded-lg p-3 bg-[#121926] mt-1">

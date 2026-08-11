@@ -1670,7 +1670,8 @@ async def run_auto_orchestration_core(
     create_branch: bool = False,
     run_development: bool = False,
     use_self_reflection: bool = False,
-    use_verify_loop: bool = False
+    use_verify_loop: bool = False,
+    orchestration_mode: str = "parallel"
 ):
     global auto_status
     # 💡 토큰 사용량 측정 시작
@@ -1827,10 +1828,33 @@ async def run_auto_orchestration_core(
 
         return (agent_name, result)
 
-    agent_results = list(await asyncio.gather(
-        *[analyze_auto_agent(a) for a in assignments]
-    ))
-    print(f"✅ [2단계] 전체 {len(agent_results)}개 에이전트 분석 완료!")
+    if orchestration_mode == "pipeline":
+        # 💡 [순차적 파이프라인 모드] 우선순위에 따라 순차 실행하며 앞 사람의 산출물을 전달
+        role_priority = {"기획": 1, "디자이너": 2, "frontend": 3, "backend": 3, "테스터": 4}
+        assignments.sort(key=lambda x: role_priority.get(x["agent"].get("role", "").lower(), 5))
+        
+        agent_results = []
+        pipeline_context = ""
+        
+        for a in assignments:
+            agent_name = a["agent"]["name"]
+            auto_status["message"] = f"🔄 {agent_name} 에이전트가 파이프라인 단계를 수행 중입니다..."
+            
+            # 이전 에이전트의 산출물이 있다면 feedback 파라미터를 활용해 전달
+            current_feedback = f"[이전 파이프라인 단계 산출물]\n{pipeline_context}\n\n위 산출물을 바탕으로 당신의 역할을 수행하십시오." if pipeline_context else None
+            
+            res = await analyze_auto_agent(a, feedback=current_feedback)
+            agent_results.append(res)
+            
+            pipeline_context += f"\n\n--- {agent_name} 결과 ---\n{res[1]}"
+            
+        print(f"✅ [2단계] 전체 {len(agent_results)}개 에이전트 파이프라인 릴레이 완료!")
+    else:
+        # 💡 [기본 병렬 스웜 모드] 모두 동시 실행
+        agent_results = list(await asyncio.gather(
+            *[analyze_auto_agent(a) for a in assignments]
+        ))
+        print(f"✅ [2단계] 전체 {len(agent_results)}개 에이전트 분석 완료!")
 
     # ⚠️ [분석 중단 예외 처리] 에이전트 결과물 중 분석 불가/정보 부족/업무 불능 상태가 감지되면 즉시 중단을 요청합니다.
     cannot_analyze_agents = []
@@ -2109,6 +2133,7 @@ async def process_auto_orchestration(request: Request):
         create_branch = req_data.get("create_branch") or req_data.get("createBranch") or False
         use_self_reflection = req_data.get("use_self_reflection") or req_data.get("useSelfReflection") or False
         use_verify_loop = req_data.get("use_verify_loop") or req_data.get("useVerifyLoop") or False
+        orchestration_mode = req_data.get("orchestration_mode", "parallel")
 
         result_data = await run_auto_orchestration_core(
             jira_key=jira_key,
@@ -2120,7 +2145,8 @@ async def process_auto_orchestration(request: Request):
             create_branch=create_branch,
             run_development=run_development,
             use_self_reflection=use_self_reflection,
-            use_verify_loop=use_verify_loop
+            use_verify_loop=use_verify_loop,
+            orchestration_mode=orchestration_mode
         )
         return result_data
 
