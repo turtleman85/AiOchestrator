@@ -25,6 +25,9 @@ import contextvars
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pptx import Presentation
+from pptx.util import Inches, Pt
 from dotenv import load_dotenv
 from google import genai
 
@@ -273,7 +276,55 @@ def convert_markdown_to_html(markdown_text: str, title: str = "AI Orchestrator R
 """
     return full_html
 
+def create_pptx_from_text(markdown_text: str, filename: str) -> str:
+    prs = Presentation()
+    
+    # Split text into slides based on markdown headings or horizontal rules
+    # We will encourage the LLM to output sections like "## [Slide 1] Title"
+    slides_content = re.split(r'(?m)^##\s+\[Slide|^#\s+\[Slide|^\-\-\-', markdown_text)
+    
+    for idx, content in enumerate(slides_content):
+        content = content.strip()
+        if not content:
+            continue
+            
+        lines = content.split('\n')
+        # If it was split by '## [Slide', the title might just be '1] Title'
+        title_raw = lines[0].strip('# ').strip()
+        if ']' in title_raw:
+            title_text = title_raw.split(']', 1)[-1].strip()
+        else:
+            title_text = title_raw
+            
+        body_text = '\n'.join([line.strip() for line in lines[1:] if line.strip()]).strip()
+        
+        # Use Title Slide layout for the first slide, Title and Content for the rest
+        layout_idx = 0 if idx == 0 else 1
+        try:
+            slide_layout = prs.slide_layouts[layout_idx]
+        except IndexError:
+            slide_layout = prs.slide_layouts[1]
+            
+        slide = prs.slides.add_slide(slide_layout)
+        
+        if slide.shapes.title:
+            slide.shapes.title.text = title_text
+            
+        if layout_idx == 1:
+            for shape in slide.placeholders:
+                if shape.placeholder_format.idx == 1:
+                    tf = shape.text_frame
+                    tf.text = body_text
+                    break
+                    
+    # Make sure public/reports directory exists
+    os.makedirs(os.path.join(os.getcwd(), "public", "reports"), exist_ok=True)
+    filepath = os.path.join(os.getcwd(), "public", "reports", filename)
+    prs.save(filepath)
+    return f"/reports/{filename}"
+
 app = FastAPI(title="AI Agent Orchestrator API")
+app.mount("/reports", StaticFiles(directory=os.path.join(os.getcwd(), "public", "reports")), name="reports")
 
 # ContextVar to accumulate token usage for the current request
 request_token_usage = contextvars.ContextVar("request_token_usage", default=None)
@@ -819,7 +870,7 @@ def build_leader_reflection_prompt(plan, agent_results, jira_info, log_text):
 
 
 # --- [👔 팀장 검토/통합 프롬프트 빌더] ---
-def build_leader_review_prompt(plan, agent_results, jira_info, log_text):
+def build_leader_review_prompt(plan, agent_results, jira_info, log_text, generate_pt=False):
     """팀장이 에이전트 결과를 교차 검토하고 최종 통합 리포트를 작성하는 프롬프트."""
     assignments = plan.get("assignments", [])
     assignment_summary = "\n".join([
@@ -830,7 +881,26 @@ def build_leader_review_prompt(plan, agent_results, jira_info, log_text):
     for agent_name, result in agent_results:
         results_text += f"\n{'='*60}\n[{agent_name}의 분석 결과]\n{'='*60}\n{result}\n"
 
-    return f"""당신은 GS Retail AI 개발팀의 팀장입니다.
+    if generate_pt:
+        return f"""당신은 GS Retail AI 기획팀의 수석 기획자(팀장)입니다.
+아래 팀원(에이전트)들의 독립 아이디어 분석 결과를 교차 검토하고, 최종 파워포인트(PT) 기획서 대본을 작성하세요.
+
+[원본 사용자 요청]
+{log_text}
+
+[팀원 배정 현황 및 분석 결과]
+{results_text}
+
+[PT 작성 지침]
+1. 각 에이전트가 제시한 의견을 종합하여 하나의 일관된 스토리라인으로 구성하십시오.
+2. 결과물은 반드시 파워포인트 슬라이드 구조로 분할되어야 합니다.
+3. 각 슬라이드의 시작은 반드시 `## [Slide N] 슬라이드 제목` 형태로 작성하십시오. (예: `## [Slide 1] 프로젝트 개요`)
+4. 각 슬라이드의 내용은 간결한 개조식(Bullet points)으로 작성하십시오.
+5. 5~10장 내외로 구성하되, 추측성 발언은 배제하고 확정된 아이디어만 담으십시오.
+6. 이 결과물은 자동 파싱되어 실제 `.pptx` 파일로 생성되므로 형식을 엄격히 지켜주십시오.
+"""
+    else:
+        return f"""당신은 GS Retail AI 개발팀의 팀장입니다.
 아래 팀원들의 독립 분석 결과를 교차 검토하고, 최종 통합 리포트를 작성하세요.
 
 [원본 사용자 요청]
@@ -1671,7 +1741,8 @@ async def run_auto_orchestration_core(
     run_development: bool = False,
     use_self_reflection: bool = False,
     use_verify_loop: bool = False,
-    orchestration_mode: str = "parallel"
+    orchestration_mode: str = "parallel",
+    generate_pt: bool = False
 ):
     global auto_status
     # 💡 토큰 사용량 측정 시작
@@ -2007,7 +2078,7 @@ async def run_auto_orchestration_core(
     # [3/4단계] 👔 팀장: 검토 + 최종 통합 리포트
     # ==============================
     print("👔 [팀장] 3/4단계: 팀원 결과 검토 및 최종 통합 리포트 작성 중...")
-    review_prompt = build_leader_review_prompt(plan, agent_results, jira_info, log_text)
+    review_prompt = build_leader_review_prompt(plan, agent_results, jira_info, log_text, generate_pt=generate_pt)
 
     if leader_model == "claude-cli":
         try:
@@ -2102,10 +2173,22 @@ async def run_auto_orchestration_core(
     auto_status["agent_reports"] = agent_reports
     auto_status["token_usage"] = usage
 
+    # PT 자동 생성
+    pt_download_url = None
+    if generate_pt:
+        filename = f"pt_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
+        try:
+            pt_download_url = create_pptx_from_text(final_report, filename)
+        except Exception as e:
+            print(f"⚠️ PPTX 생성 실패: {e}")
+            
+    if pt_download_url:
+        auto_status["pt_download_url"] = pt_download_url
+
     usage = request_token_usage.get() or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     response_html = convert_markdown_to_html(final_report, title=f"AI Orchestrator Report - {jira_key or 'AUTO리포트'}")
     
-    return {
+    return_data = {
         "status": "success",
         "result": final_report,
         "result_html": response_html,
@@ -2113,7 +2196,10 @@ async def run_auto_orchestration_core(
         "agent_reports": agent_reports,
         "token_usage": usage
     }
-
+    if pt_download_url:
+        return_data["pt_download_url"] = pt_download_url
+        
+    return return_data
 
 # --- [🤖 AUTO 오케스트레이션 API (팀장 자동 배정 모드)] ---
 @app.post("/api/v1/orchestrate/auto")
@@ -2134,6 +2220,7 @@ async def process_auto_orchestration(request: Request):
         use_self_reflection = req_data.get("use_self_reflection") or req_data.get("useSelfReflection") or False
         use_verify_loop = req_data.get("use_verify_loop") or req_data.get("useVerifyLoop") or False
         orchestration_mode = req_data.get("orchestration_mode", "parallel")
+        generate_pt = req_data.get("generate_pt") or req_data.get("generatePt") or False
 
         result_data = await run_auto_orchestration_core(
             jira_key=jira_key,
@@ -2146,7 +2233,8 @@ async def process_auto_orchestration(request: Request):
             run_development=run_development,
             use_self_reflection=use_self_reflection,
             use_verify_loop=use_verify_loop,
-            orchestration_mode=orchestration_mode
+            orchestration_mode=orchestration_mode,
+            generate_pt=generate_pt
         )
         return result_data
 

@@ -260,6 +260,7 @@ function Dashboard() {
     const [createBranch, setCreateBranch] = useState(false);
     const [requireLeaderFeedback, setRequireLeaderFeedback] = useState(false);
     const [runTesting, setRunTesting] = useState(false);
+    const [generatePt, setGeneratePt] = useState(false);
     const [requestMode, setRequestMode] = useState<'unified' | 'individual'>('unified');
     const [individualRequests, setIndividualRequests] = useState<Record<string, {jiraKey: string, logInput: string}>>({});
     
@@ -280,8 +281,9 @@ function Dashboard() {
     const [agentReports, setAgentReports] = useState<Record<string, any>>({});
     const [reportViewTab, setReportViewTab] = useState<'visual' | 'markdown'>('visual');
     const [selectedReportAgentId, setSelectedReportAgentId] = useState<string>('merged');
-    const [lastTokenUsage, setLastTokenUsage] = useState<any>(null);
+    const [lastTokenUsage, setLastTokenUsage] = useState<{prompt_tokens: number, completion_tokens: number, total_tokens: number} | null>(null);
     const [loadingLogs, setLoadingLogs] = useState<string[]>([]);
+    const [ptDownloadUrl, setPtDownloadUrl] = useState<string | null>(null);
 
     // Global Polling for Background Tasks (Teams/Email)
     useEffect(() => {
@@ -334,6 +336,7 @@ function Dashboard() {
                         }
                         if (statusData.result) setCurrentReportText(statusData.result);
                         if (statusData.agent_reports) setAgentReports(statusData.agent_reports);
+                        if (statusData.pt_download_url) setPtDownloadUrl(statusData.pt_download_url);
                         if (statusData.token_usage) setLastTokenUsage(statusData.token_usage);
                         
                         setFinalReport(statusData.message || '완료되었습니다.');
@@ -390,7 +393,9 @@ function Dashboard() {
     // Auto Mode (AI Orchestrator) Logic
     useEffect(() => {
         if (agentPanelTab !== 'auto') {
-            if (leaderStatus?.step !== 'idle') setLeaderStatus({ step: 'idle', message: '대기 중' });
+            setLastTokenUsage(null);
+            setPtDownloadUrl(null);
+            setLeaderStatus({ step: 'idle', message: '대기 중' });
             return;
         }
 
@@ -633,6 +638,7 @@ function Dashboard() {
         setCurrentReportText('');
         setAgentReports({});
         setLastTokenUsage(null);
+        setPtDownloadUrl(null);
         if (agentPanelTab === 'auto') {
             setLeaderStatus({ step: 'planning', message: '요청 사항 분석 및 계획 수립 중...' });
             setFinalReport(`[오케스트레이션 자동 가동]\n- 분석할 요청 사항: ${logInput || '없음'}\n\n팀장이 요청을 분석하여 에이전트들에게 업무를 자동 배분합니다...`);
@@ -662,7 +668,8 @@ function Dashboard() {
                         create_branch: createBranch,
                         require_leader_feedback: requireLeaderFeedback,
                         run_testing: runTesting,
-                        use_verify_loop: true
+                        use_verify_loop: true,
+                        generate_pt: generatePt
                     })
                 });
                 const data = await response.json();
@@ -768,7 +775,8 @@ function Dashboard() {
                     create_branch: createBranch,
                     use_self_reflection: true,
                     use_verify_loop: true,
-                    orchestration_mode: orchestrationMode
+                    orchestration_mode: orchestrationMode,
+                    generate_pt: generatePt
                 })
             });
 
@@ -1093,6 +1101,15 @@ function Dashboard() {
                                         </div>
                                     </label>
                                 </div>
+                                <div className="grid grid-cols-2 gap-3 mt-3">
+                                    <label className="flex items-center gap-2 cursor-pointer hover:text-slate-350 select-none">
+                                        <input type="checkbox" checked={generatePt} onChange={(e) => setGeneratePt(e.target.checked)} className="accent-fuchsia-500 w-3.5 h-3.5" />
+                                        <div>
+                                            <div className="text-[11px] font-bold text-slate-200">PT 기획서 자동 생성</div>
+                                            <div className="text-[9px] text-slate-500">결과물 PPTX 문서로 변환</div>
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
 
                             <div className="flex gap-2 mt-2">
@@ -1326,6 +1343,18 @@ function Dashboard() {
                         )}
                     </div>
                     
+                    {ptDownloadUrl && (
+                        <div className="mb-4 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-lg p-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-fuchsia-400" />
+                                <span className="text-xs font-bold text-fuchsia-300">PT 기획서가 자동 생성되었습니다!</span>
+                            </div>
+                            <a href={`http://127.0.0.1:8000${ptDownloadUrl}`} download className="px-3 py-1.5 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold rounded-md shadow-sm transition-colors flex items-center gap-1.5">
+                                다운로드 (.pptx)
+                            </a>
+                        </div>
+                    )}
+
                     <div className="flex gap-2 mb-3">
                         <button onClick={() => setReportViewTab('visual')} className={`px-4 py-1.5 text-xs font-bold rounded border transition-all flex items-center gap-2 ${reportViewTab === 'visual' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
                             <div className={`w-2 h-2 rounded-full ${reportViewTab === 'visual' ? 'bg-emerald-400' : 'bg-slate-600'}`} />
